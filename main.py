@@ -1,14 +1,41 @@
+import copy
 import torch
 
 from dcgan import DCGAN
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
+from torchvision import transforms
 from torchvision.datasets.mnist import MNIST
 
 
-def train(f, f_copy, opt, data_loader, n_epochs):
+def load_mnist():
+    transform = transforms.Compose([
+    transforms.Resize(64),  
+    transforms.Grayscale(num_output_channels=3),
+    transforms.ToTensor(),
+    transforms.Normalize([0.5]*3, [0.5]*3)  # Normalize to [-1, 1]
+    ])
+
+    mnist = torch.utils.data.DataLoader(
+        MNIST(root="./data", download=True, transform=transform),
+        batch_size=256,
+        shuffle=True,
+        num_workers=4
+    )
+
+    return mnist
+
+def train(f, f_copy, opt, data_loader, n_epochs, device,
+          lambda_rec=20, lambda_idem=20, lambda_tight=2.5):
+    
+    f.train()
+
     for epoch in range(n_epochs):
-        for x in data_loader:
-            z = torch.randn_like(x)
+        for batch_idx, (x, _) in enumerate(data_loader):
+            x = x.to(device)
+
+            # TODO: Validate if this is the correct way to apply latent sampling
+            z = torch.randn_like(x, device=device)
 
             # Apply f to get all needed
             f_copy.load_state_dict(f.state_dict())
@@ -19,29 +46,34 @@ def train(f, f_copy, opt, data_loader, n_epochs):
             f_fz = f_copy(fz)
 
             # Calculate losses
-            loss_rec = (fx - x).pow(2).mean()
-            loss_idem = (f_fz - fz).pow(2).mean()
-            loss_tight = -(ff_z - f_z).pow(2).mean()
-
+            loss_rec = F.l1_loss(fx, x)
+            loss_idem = F.l1_loss(f_fz, fz)
+            loss_tight = -F.l1_loss(ff_z, f_z)
+            
             # Optimize for losses
-            loss = loss_rec + loss_idem + loss_tight * 0.1
+            loss = lambda_rec * loss_rec + lambda_idem * loss_idem + lambda_tight * loss_tight
             opt.zero_grad()
             loss.backward()
             opt.step()
 
-            print(f"Epoch {epoch}, Loss: {loss.item()}")
+            if batch_idx % 100 == 0:
+                print(f"Epoch {epoch}, Batch {batch_idx} Loss: {loss.item()}")
 
-# Load MNIST
-mnist = torch.utils.data.DataLoader(
-    MNIST(root="./data", download=True),
-    batch_size=256,
-    shuffle=True
-)
+
+mnist = load_mnist()
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # TODO: Tensorboard logging
 n_epochs = 2 # TODO: Set to 1000 as in the paper later
 batch_size = 256
+
 model = DCGAN()
+model_copy = copy.deepcopy(model).requires_grad_(False)
+
+model.to(device)
+model_copy.to(device)
+
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.5, 0.999))
 
-train(model, model.copy(), optimizer, mnist, n_epochs)
+train(model, model_copy, optimizer, mnist, n_epochs, device)
