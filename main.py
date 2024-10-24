@@ -3,7 +3,7 @@ import torch
 
 from dcgan import DCGAN
 from torch.nn import functional as F
-from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 from torchvision.datasets.mnist import MNIST
 
@@ -25,7 +25,7 @@ def load_mnist():
 
     return mnist
 
-def train(f, f_copy, opt, data_loader, n_epochs, device,
+def train(f, f_copy, opt, data_loader, n_epochs, device, writer=None,
           lambda_rec=20, lambda_idem=20, lambda_tight=2.5):
     
     f.train()
@@ -56,24 +56,37 @@ def train(f, f_copy, opt, data_loader, n_epochs, device,
             loss.backward()
             opt.step()
 
-            if batch_idx % 100 == 0:
+            if writer:
+                update_step = epoch * len(data_loader) + batch_idx
+                writer.add_scalar('Loss/Total', loss.item(), update_step)
+                writer.add_scalar('Loss/Reconstruction', loss_rec.item(), update_step)
+                writer.add_scalar('Loss/Idempotency', loss_idem.item(), update_step)
+                writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
+            elif batch_idx % 100 == 0:
                 print(f"Epoch {epoch}, Batch {batch_idx} Loss: {loss.item()}")
 
 
-mnist = load_mnist()
+if __name__ == "__main__":
+    mnist = load_mnist()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# TODO: Tensorboard logging
-n_epochs = 2 # TODO: Set to 1000 as in the paper later
-batch_size = 256
+    n_epochs = 1000
+    batch_size = 256
 
-model = DCGAN()
-model_copy = copy.deepcopy(model).requires_grad_(False)
+    model = DCGAN()
+    model_copy = copy.deepcopy(model).requires_grad_(False)
 
-model.to(device)
-model_copy.to(device)
+    model.to(device)
+    model_copy.to(device)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.5, 0.999))
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.5, 0.999))
 
-train(model, model_copy, optimizer, mnist, n_epochs, device)
+    writer = SummaryWriter(log_dir='runs/idempotent_gan')
+
+    try:
+        train(model, model_copy, optimizer, mnist, n_epochs, device, writer)
+    except KeyboardInterrupt:
+        print("Training interrupted.")
+    finally:
+        writer.close()
