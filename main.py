@@ -3,7 +3,8 @@ import torch
 
 from dcgan import DCGAN
 from torch.nn import functional as F
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard.writer import SummaryWriter
 from torchvision import transforms
 from torchvision.datasets.mnist import MNIST
 
@@ -16,7 +17,7 @@ def load_mnist():
     transforms.Normalize([0.5]*3, [0.5]*3)  # Normalize to [-1, 1]
     ])
 
-    mnist = torch.utils.data.DataLoader(
+    mnist = DataLoader(
         MNIST(root="./data", download=True, transform=transform),
         batch_size=256,
         shuffle=True,
@@ -26,7 +27,7 @@ def load_mnist():
     return mnist
 
 def train(f, f_copy, opt, data_loader, n_epochs, device, writer=None,
-          lambda_rec=20, lambda_idem=20, lambda_tight=2.5):
+          lambda_rec=20, lambda_idem=20, lambda_tight=2.5, tight_clamp_ratio=1.5):
     
     f.train()
 
@@ -34,7 +35,6 @@ def train(f, f_copy, opt, data_loader, n_epochs, device, writer=None,
         for batch_idx, (x, _) in enumerate(data_loader):
             x = x.to(device)
 
-            # TODO: Validate if this is the correct way to apply latent sampling
             z = torch.randn_like(x, device=device)
 
             # Apply f to get all needed
@@ -49,6 +49,9 @@ def train(f, f_copy, opt, data_loader, n_epochs, device, writer=None,
             loss_rec = F.l1_loss(fx, x)
             loss_idem = F.l1_loss(f_fz, fz)
             loss_tight = -F.l1_loss(ff_z, f_z)
+
+            # Smoothen tightness loss
+            loss_tight = torch.tanh(loss_tight / (tight_clamp_ratio * loss_rec)) * tight_clamp_ratio * loss_rec
             
             # Optimize for losses
             loss = lambda_rec * loss_rec + lambda_idem * loss_idem + lambda_tight * loss_tight
@@ -67,6 +70,7 @@ def train(f, f_copy, opt, data_loader, n_epochs, device, writer=None,
 
 
 if __name__ == "__main__":
+    # TODO: Implement real-data related noise mentioned at the end of chapter 2
     mnist = load_mnist()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
