@@ -4,12 +4,11 @@ import os
 import torch
 
 from dcgan import DCGAN
+from dataset import load_mnist
 
 from torch.nn import functional as F
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
-from torchvision import transforms
-from torchvision.datasets.mnist import MNIST
+
 
 
 def setup_dirs():
@@ -17,22 +16,6 @@ def setup_dirs():
     os.makedirs("checkpoints", exist_ok=True)
     os.makedirs("runs", exist_ok=True)
 
-def load_mnist():
-    transform = transforms.Compose([
-    transforms.Resize(64),  
-    transforms.Grayscale(num_output_channels=3),
-    transforms.ToTensor(),
-    transforms.Normalize([0.5]*3, [0.5]*3)  # Normalize to [-1, 1]
-    ])
-
-    mnist = DataLoader(
-        MNIST(root="./data", download=True, transform=transform),
-        batch_size=256,
-        shuffle=True,
-        num_workers=4
-    )
-
-    return mnist
 
 def train(f, f_copy, opt, data_loader, n_epochs, device, writer, run_id,
           lambda_rec=20, lambda_idem=20, lambda_tight=2.5, tight_clamp_ratio=1.5):
@@ -99,6 +82,7 @@ if __name__ == "__main__":
     mnist = load_mnist()
     setup_dirs()
 
+    writer = SummaryWriter(log_dir=f'runs/{run_id}')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Hyperparameters
@@ -112,9 +96,6 @@ if __name__ == "__main__":
     model_copy.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.5, 0.999))
-
-
-    writer = SummaryWriter(log_dir=f'runs/{run_id}')
 
     try:
         train(model, model_copy, optimizer, mnist, n_epochs, device, writer, run_id)
