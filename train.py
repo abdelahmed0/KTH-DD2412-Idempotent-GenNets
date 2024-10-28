@@ -1,3 +1,4 @@
+import argparse
 import copy
 import os
 import torch
@@ -84,12 +85,23 @@ def train(f, f_copy, opt, data_loader, n_epochs, device, writer, run_id,
 
 
 if __name__ == "__main__":
+    """ Usage: python train.py --run_id <run_id>"""
     # TODO: Implement real-data related noise mentioned at the end of chapter 2
+    
+    # Parse arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run_id", type=str, required=True)
+    args = parser.parse_args()
+
+    run_id = args.run_id
+
+    # Setup
     mnist = load_mnist()
     setup_dirs()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # Hyperparameters
     n_epochs = 1000
     batch_size = 256
 
@@ -101,7 +113,6 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.5, 0.999))
 
-    run_id = "idempotent_gan"
 
     writer = SummaryWriter(log_dir=f'runs/{run_id}')
 
