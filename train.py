@@ -1,13 +1,20 @@
 import copy
+import os
 import torch
 
 from dcgan import DCGAN
+
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from torchvision import transforms
 from torchvision.datasets.mnist import MNIST
 
+
+def setup_dirs():
+    os.makedirs("data", exist_ok=True)
+    os.makedirs("checkpoints", exist_ok=True)
+    os.makedirs("runs", exist_ok=True)
 
 def load_mnist():
     transform = transforms.Compose([
@@ -26,7 +33,7 @@ def load_mnist():
 
     return mnist
 
-def train(f, f_copy, opt, data_loader, n_epochs, device, writer=None,
+def train(f, f_copy, opt, data_loader, n_epochs, device, writer, run_id,
           lambda_rec=20, lambda_idem=20, lambda_tight=2.5, tight_clamp_ratio=1.5):
     
     f.train()
@@ -48,30 +55,38 @@ def train(f, f_copy, opt, data_loader, n_epochs, device, writer=None,
             # Calculate losses
             loss_rec = F.l1_loss(fx, x)
             loss_idem = F.l1_loss(f_fz, fz)
-            loss_tight = -F.l1_loss(ff_z, f_z)
+            loss_tight = F.l1_loss(ff_z, f_z)
 
             # Smoothen tightness loss
             loss_tight = torch.tanh(loss_tight / (tight_clamp_ratio * loss_rec)) * tight_clamp_ratio * loss_rec
             
             # Optimize for losses
-            loss = lambda_rec * loss_rec + lambda_idem * loss_idem + lambda_tight * loss_tight
+            loss = lambda_rec * loss_rec + lambda_idem * loss_idem - lambda_tight * loss_tight
             opt.zero_grad()
             loss.backward()
             opt.step()
 
-            if writer:
-                update_step = epoch * len(data_loader) + batch_idx
-                writer.add_scalar('Loss/Total', loss.item(), update_step)
-                writer.add_scalar('Loss/Reconstruction', loss_rec.item(), update_step)
-                writer.add_scalar('Loss/Idempotency', loss_idem.item(), update_step)
-                writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
-            elif batch_idx % 100 == 0:
-                print(f"Epoch {epoch}, Batch {batch_idx} Loss: {loss.item()}")
+            update_step = epoch * len(data_loader) + batch_idx
+            writer.add_scalar('Loss/Total', loss.item(), update_step)
+            writer.add_scalar('Loss/Reconstruction', loss_rec.item(), update_step)
+            writer.add_scalar('Loss/Idempotence', loss_idem.item(), update_step)
+            writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
+
+        
+        if epoch % 10 == 0:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': f.state_dict(),
+                'optimizer_state_dict': opt.state_dict(),
+                'loss': loss
+            }, f"checkpoints/{run_id}_{epoch}.pt")
+            print(f"Saved checkpoint at epoch {epoch}")
 
 
 if __name__ == "__main__":
     # TODO: Implement real-data related noise mentioned at the end of chapter 2
     mnist = load_mnist()
+    setup_dirs()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -86,10 +101,12 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.5, 0.999))
 
-    writer = SummaryWriter(log_dir='runs/idempotent_gan')
+    run_id = "idempotent_gan"
+
+    writer = SummaryWriter(log_dir=f'runs/{run_id}')
 
     try:
-        train(model, model_copy, optimizer, mnist, n_epochs, device, writer)
+        train(model, model_copy, optimizer, mnist, n_epochs, device, writer, run_id)
     except KeyboardInterrupt:
         print("Training interrupted.")
     finally:
