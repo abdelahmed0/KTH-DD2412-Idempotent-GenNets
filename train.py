@@ -3,6 +3,7 @@ import copy
 import os
 import torch
 from tqdm import tqdm
+import yaml
 
 from dcgan import DCGAN
 from dataset import load_mnist
@@ -11,22 +12,33 @@ from torch.nn import functional as F
 from torch.utils.tensorboard.writer import SummaryWriter
 
 
-
-def setup_dirs():
-    os.makedirs("data", exist_ok=True)
-    os.makedirs("checkpoints", exist_ok=True)
-    os.makedirs("runs", exist_ok=True)
+def setup_dirs(config):
+    os.makedirs(config['checkpoint']['save_dir'], exist_ok=True)
+    os.makedirs(config['logging']['log_dir'], exist_ok=True)
 
 
-def train(f, f_copy, opt, data_loader, n_epochs, device, writer, run_id,
-          lambda_rec=20, lambda_idem=20, lambda_tight=2.5, tight_clamp_ratio=1.5,
-          save_period=10):
-    
+def load_config(config_path):
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
+
+
+def train(f, f_copy, opt, data_loader, config, device, writer):
+    """Train the Idempotent Generative Network"""
+
+    n_epochs = config['training']['n_epochs']
+    lambda_rec = config['losses']['lambda_rec']
+    lambda_idem = config['losses']['lambda_idem']
+    lambda_tight = config['losses']['lambda_tight']
+    tight_clamp_ratio = config['losses']['tight_clamp_ratio']
+    save_period = config['training']['save_period']
+    run_id = config['run_id']
+
     f.train()
     f_copy.eval()
 
     for epoch in tqdm(range(n_epochs), position=1, desc="Epoch"):
-        for batch_idx, (x, _) in (tqdm_bar := tqdm(enumerate(data_loader), total=len(data_loader), position=0, desc="Train Step")):
+        for batch_idx, (x, _) in enumerate(tqdm(data_loader, total=len(data_loader), position=0, desc="Train Step")):
             x = x.to(device)
 
             z = torch.randn_like(x, device=device)
@@ -46,7 +58,7 @@ def train(f, f_copy, opt, data_loader, n_epochs, device, writer, run_id,
 
             # Smoothen tightness loss
             loss_tight = torch.tanh(loss_tight / (tight_clamp_ratio * loss_rec)) * tight_clamp_ratio * loss_rec
-            
+
             # Optimize for losses
             loss = lambda_rec * loss_rec + lambda_idem * loss_idem - lambda_tight * loss_tight
             opt.zero_grad()
@@ -54,63 +66,90 @@ def train(f, f_copy, opt, data_loader, n_epochs, device, writer, run_id,
             opt.step()
 
             loss_item = loss.item()
-            tqdm_bar.set_postfix_str(f'Loss: {loss_item:0.3f}')
+            tqdm.write(f"Epoch [{epoch+1}/{n_epochs}], Batch [{batch_idx+1}/{len(data_loader)}], Loss: {loss_item:.3f}")
             update_step = epoch * len(data_loader) + batch_idx
             writer.add_scalar('Loss/Total', loss_item, update_step)
             writer.add_scalar('Loss/Reconstruction', loss_rec.item(), update_step)
             writer.add_scalar('Loss/Idempotence', loss_idem.item(), update_step)
             writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
 
-        
-        if epoch % save_period == 0 or epoch + 1 == n_epochs:
+        if (epoch + 1) % save_period == 0 or (epoch + 1) == n_epochs:
+            checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{epoch+1}.pt")
             torch.save({
-                'epoch': epoch,
+                'epoch': epoch + 1,
                 'model_state_dict': getattr(f, '_orig_mod', f).state_dict(),
                 'optimizer_state_dict': opt.state_dict(),
-                'loss': loss
-            }, f"checkpoints/{run_id}_{epoch}.pt")
-            tqdm_bar.write(f"Saved checkpoint at epoch {epoch}")
+                'loss': loss_item
+            }, checkpoint_path)
+            tqdm.write(f"Saved checkpoint at epoch {epoch+1}")
 
 
-if __name__ == "__main__":
-    """Usage: python train.py --run_id <run_id>"""
-    # TODO: Implement real-data related noise mentioned at the end of chapter 2
-    
+def main():
+    """Usage: python train.py --config config.yaml"""
     # Parse arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--run_id", type=str, required=True)
+    parser = argparse.ArgumentParser(description="Train Idempotent Generative Networks")
+    parser.add_argument("--config", type=str, default="config.yaml", help="Path to the config file")
     args = parser.parse_args()
 
-    run_id = args.run_id
+    # Load configuration
+    config = load_config(args.config)
+    run_id = config['run_id']
 
-    # Hyperparameters
-    n_epochs = 1000
-    batch_size = 256
-    save_period = 100
-    compile_model = True
+    # Setup directories
+    setup_dirs(config)
 
-    # Setup
-    mnist = load_mnist(batch_size=batch_size)
-    setup_dirs()
+    # Load dataset
+    dataset_name = config['dataset']['name']
+    if dataset_name.lower() == "mnist":
+        data_loader = load_mnist(batch_size=config['training']['batch_size'],
+                                 download=config['dataset']['download'],
+                                 num_workers=config['dataset']['num_workers'])
+    else:
+        raise NotImplementedError(f"Dataset {dataset_name} is not supported yet.")
 
-    writer = SummaryWriter(log_dir=f'runs/{run_id}')
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Initialize TensorBoard writer
+    log_dir = os.path.join(config['logging']['log_dir'], run_id)
+    writer = SummaryWriter(log_dir=log_dir)
 
+    # Setup device
+    device = torch.device("cuda" if config['device']['use_cuda'] and torch.cuda.is_available() else "cpu")
+
+    # Initialize models
     model = DCGAN()
     model_copy = copy.deepcopy(model).requires_grad_(False)
 
     model.to(device)
     model_copy.to(device)
 
-    if compile_model:
+    # Compile models if specified
+    if config['training'].get('compile_model', False):
         model = torch.compile(model, mode="reduce-overhead")
         model_copy = torch.compile(model_copy, mode="reduce-overhead")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, betas=(0.5, 0.999))
+    # Initialize optimizer
+    optimizer_config = config['optimizer']
+    if optimizer_config['type'].lower() == "adam":
+        optimizer = torch.optim.Adam(model.parameters(),
+                                     lr=optimizer_config['lr'],
+                                     betas=optimizer_config['betas'])
+    else:
+        raise NotImplementedError(f"Optimizer type {optimizer_config['type']} is not supported.")
 
     try:
-        train(model, model_copy, optimizer, mnist, n_epochs, device, writer, run_id, save_period=save_period)
+        train(
+            f=model,
+            f_copy=model_copy,
+            opt=optimizer,
+            data_loader=data_loader,
+            config=config,
+            device=device,
+            writer=writer
+        )
     except KeyboardInterrupt:
         print("Training interrupted.")
     finally:
         writer.close()
+
+
+if __name__ == "__main__":
+    main()

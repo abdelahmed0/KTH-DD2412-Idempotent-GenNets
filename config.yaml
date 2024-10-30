@@ -1,0 +1,36 @@
+run_id: "baseline"
+
+training:
+  n_epochs: 1000
+  batch_size: 256
+  save_period: 100
+  compile_model: true
+
+losses:
+  lambda_rec: 20
+  lambda_idem: 20
+  lambda_tight: 2.5
+  tight_clamp_ratio: 1.5
+
+optimizer:
+  type: "Adam"
+  lr: 0.0001
+  betas: [0.5, 0.999]
+
+model:
+  architecture: "DCGAN"
+
+dataset:
+  name: "MNIST"
+  path: "./data"
+  download: true
+  num_workers: 4
+
+logging:
+  log_dir: "runs"
+
+checkpoint:
+  save_dir: "checkpoints"
+
+device:
+  use_cuda: true
