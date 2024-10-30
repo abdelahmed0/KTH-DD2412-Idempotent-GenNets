@@ -1,15 +1,20 @@
-run_id: "baseline"
+run_id: "IGNITE_MNIST"
 
 training:
   n_epochs: 1000
   batch_size: 256
   save_period: 100
   compile_model: true
+  manifold_warmup:
+    enabled: true
+    warmup_epochs: 100
+    lambda_tight_start: 0.5 # Starting value of lambda_tight
+    schedule_type: "linear" # Type of scheduling ("linear" or "exponential")
 
 losses:
   lambda_rec: 20
   lambda_idem: 20
-  lambda_tight: 2.5
+  lambda_tight: 2.5         # If warmup is enabled, this value is the end value of lambda_tight
   tight_clamp_ratio: 1.5
 
 optimizer:

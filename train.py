@@ -24,20 +24,38 @@ def load_config(config_path):
 
 
 def train(f, f_copy, opt, data_loader, config, device, writer):
-    """Train the Idempotent Generative Network"""
+    """Train the Idempotent Generative Network with optional Manifold Expansion Warmup"""
 
     n_epochs = config['training']['n_epochs']
     lambda_rec = config['losses']['lambda_rec']
     lambda_idem = config['losses']['lambda_idem']
-    lambda_tight = config['losses']['lambda_tight']
+    lambda_tight_end = config['losses']['lambda_tight']
     tight_clamp_ratio = config['losses']['tight_clamp_ratio']
     save_period = config['training']['save_period']
     run_id = config['run_id']
+
+    # Manifold Warmup Parameters
+    warmup_config = config['training'].get('manifold_warmup', {})
+    warmup_enabled = warmup_config.get('enabled', False)
+    warmup_epochs = warmup_config.get('warmup_epochs', 0)
+    lambda_tight_start = warmup_config.get('lambda_tight_start', lambda_tight_end)
+    schedule_type = warmup_config.get('schedule_type', 'linear')
 
     f.train()
     f_copy.eval()
 
     for epoch in tqdm(range(n_epochs), position=1, desc="Epoch"):
+        # Calculate current lambda_tight based on warmup schedule
+        if warmup_enabled and epoch < warmup_epochs:
+            if schedule_type == "linear":
+                lambda_tight = lambda_tight_start + (lambda_tight_end - lambda_tight_start) * (epoch / warmup_epochs)
+            elif schedule_type == "exponential":
+                lambda_tight = lambda_tight_start * (lambda_tight_end / lambda_tight_start) ** (epoch / warmup_epochs)
+            else:
+                raise ValueError(f"Unsupported schedule_type: {schedule_type}")
+        else:
+            lambda_tight = lambda_tight_end
+
         for batch_idx, (x, _) in enumerate(tqdm(data_loader, total=len(data_loader), position=0, desc="Train Step")):
             x = x.to(device)
 
@@ -72,6 +90,7 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
             writer.add_scalar('Loss/Reconstruction', loss_rec.item(), update_step)
             writer.add_scalar('Loss/Idempotence', loss_idem.item(), update_step)
             writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
+            writer.add_scalar('Hyperparameters/Lambda_Tight', lambda_tight, update_step)
 
         if (epoch + 1) % save_period == 0 or (epoch + 1) == n_epochs:
             checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{epoch+1}.pt")
