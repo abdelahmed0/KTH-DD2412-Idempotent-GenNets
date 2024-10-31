@@ -12,20 +12,30 @@ def load_model(path):
     model.load_state_dict(checkpoint['model_state_dict'])
     return model
 
-def reconstruct_mnist_images(model, device, mnist, n_images, n_recursions):
+def rec_generate_images(model, device, mnist, n_images, n_recursions, reconstruct):
     model.eval()
     original = []
     reconstructed = [[] for _ in range(n_images)]
     with torch.no_grad():
-        for i, (x, _) in enumerate(mnist):
-            if i == n_images:
-                break
-            original.append(x.numpy())
-            x_hat = x.to(device)
+        if reconstruct:
+            for i, (x, _) in enumerate(mnist):
+                if i == n_images:
+                    break
+                original.append(x.numpy())
+                x_hat = x.to(device)
 
-            for _ in range(n_recursions):
-                x_hat = model(x_hat)
-                reconstructed[i].append(x_hat.cpu().numpy())
+                for _ in range(n_recursions):
+                    x_hat = model(x_hat)
+                    reconstructed[i].append(x_hat.cpu().numpy())
+        else:
+            for i in range(n_images):
+                x = torch.randn(1, 3, 64, 64).to(device)
+                original.append(x.cpu().numpy())
+                x_hat = x.to(device)
+
+                for _ in range(n_recursions):
+                    x_hat = model(x_hat)
+                    reconstructed[i].append(x_hat.cpu().numpy())
         
     fig, axs = plt.subplots(1+n_recursions, n_images+1, figsize=(n_images, n_recursions + 1))
     for col in range(n_images):
@@ -72,5 +82,6 @@ if __name__=="__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    reconstruct_mnist_images(model, device, mnist, n_images, n_recursions)
+    rec_generate_images(model, device, mnist, n_images, n_recursions, reconstruct=True)
+    rec_generate_images(model, device, mnist, n_images, n_recursions, reconstruct=False)
 
