@@ -62,11 +62,11 @@ if __name__=="__main__":
 
     # Setup
     n_images = 10
-    n_recursions = 1
+    n_recursions = 3
     run_id = args.run_id
     epoch = args.epoch
 
-    model = load_model(f"checkpoints/{run_id}_{epoch}.pt")
+    model = load_model(f"checkpoints/{run_id}_epoch_{epoch}.pt")
     mnist = load_mnist(batch_size=1)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
