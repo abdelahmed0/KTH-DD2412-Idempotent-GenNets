@@ -84,7 +84,7 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
             opt.step()
 
             loss_item = loss.item()
-            tqdm.write(f"Epoch [{epoch+1}/{n_epochs}], Batch [{batch_idx+1}/{len(data_loader)}], Loss: {loss_item:.3f}")
+            #tqdm.write(f"Epoch [{epoch+1}/{n_epochs}], Batch [{batch_idx+1}/{len(data_loader)}], Loss: {loss_item:.3f}")
             update_step = epoch * len(data_loader) + batch_idx
             writer.add_scalar('Loss/Total', loss_item, update_step)
             writer.add_scalar('Loss/Reconstruction', loss_rec.item(), update_step)
@@ -98,9 +98,10 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
                 'epoch': epoch + 1,
                 'model_state_dict': getattr(f, '_orig_mod', f).state_dict(),
                 'optimizer_state_dict': opt.state_dict(),
-                'loss': loss_item
+                'loss': loss_item,
+                'config': config
             }, checkpoint_path)
-            tqdm.write(f"Saved checkpoint at epoch {epoch+1}")
+            tqdm.write(f"Saved checkpoint at epoch {epoch+1} \nEpoch [{epoch+1}/{n_epochs}], Batch [{batch_idx+1}/{len(data_loader)}], Loss: {loss_item:.3f}")
 
 
 def main():

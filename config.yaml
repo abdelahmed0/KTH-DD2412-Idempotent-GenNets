@@ -29,8 +29,8 @@ dataset:
   name: "MNIST"
   path: "./data"
   download: true
-  num_workers: 4
-  pin_memory: False
+  num_workers: 5
+  pin_memory: True
 
 logging:
   log_dir: "runs"
