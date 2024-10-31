@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import argparse
 
 from dcgan import DCGAN
-from dataset import load_mnist
+from util.dataset import load_mnist
 
 
 def load_model(path):
@@ -53,7 +53,7 @@ def reconstruct_mnist_images(model, device, mnist, n_images, n_recursions):
     plt.show()
 
 if __name__=="__main__":
-    """Usage: python train.py --run_id <run_id> --epoch <epoch>"""    
+    """Usage: python generate.py --run_id <run_id> --epoch <epoch>"""    
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--run_id", type=str, required=True)
@@ -67,7 +67,7 @@ if __name__=="__main__":
     epoch = args.epoch
 
     model = load_model(f"checkpoints/{run_id}_{epoch}.pt")
-    mnist = load_mnist()
+    mnist = load_mnist(batch_size=1)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)

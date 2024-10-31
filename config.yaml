@@ -30,6 +30,7 @@ dataset:
   path: "./data"
   download: true
   num_workers: 4
+  pin_memory: False
 
 logging:
   log_dir: "runs"

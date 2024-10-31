@@ -6,7 +6,7 @@ from tqdm import tqdm
 import yaml
 
 from dcgan import DCGAN
-from dataset import load_mnist
+from util.dataset import load_mnist
 
 from torch.nn import functional as F
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -122,7 +122,8 @@ def main():
     if dataset_name.lower() == "mnist":
         data_loader = load_mnist(batch_size=config['training']['batch_size'],
                                  download=config['dataset']['download'],
-                                 num_workers=config['dataset']['num_workers'])
+                                 num_workers=config['dataset']['num_workers'],
+                                 pin_memory=config['dataset']['pin_memory'])
     else:
         raise NotImplementedError(f"Dataset {dataset_name} is not supported yet.")
 

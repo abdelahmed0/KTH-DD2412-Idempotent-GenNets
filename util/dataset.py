@@ -2,7 +2,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets.mnist import MNIST
 
-def load_mnist(batch_size=256, download=True, num_workers=3):
+def load_mnist(batch_size=256, download=True, num_workers=3, pin_memory=False) -> DataLoader:
     transform = transforms.Compose([
     transforms.Resize(64),  
     transforms.Grayscale(num_output_channels=3),
@@ -14,7 +14,8 @@ def load_mnist(batch_size=256, download=True, num_workers=3):
         MNIST(root="./data", download=download, transform=transform),
         batch_size=batch_size,
         shuffle=True,
-        num_workers=num_workers
+        num_workers=num_workers,
+        pin_memory=pin_memory
     )
 
     return mnist
