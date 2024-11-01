@@ -124,7 +124,8 @@ def main():
         data_loader = load_mnist(batch_size=config['training']['batch_size'],
                                  download=config['dataset']['download'],
                                  num_workers=config['dataset']['num_workers'],
-                                 pin_memory=config['dataset']['pin_memory'])
+                                 pin_memory=config['dataset']['pin_memory'],
+                                 single_channel=config['dataset']['single_channel'])
     else:
         raise NotImplementedError(f"Dataset {dataset_name} is not supported yet.")
 

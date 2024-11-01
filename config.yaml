@@ -30,7 +30,8 @@ dataset:
   path: "./data"
   download: true
   num_workers: 5
-  pin_memory: True
+  pin_memory: true
+  single_channel: true
 
 logging:
   log_dir: "runs"
