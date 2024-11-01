@@ -1,18 +1,12 @@
 import torch
-import matplotlib.pyplot as plt
 import argparse
 
 from dcgan import DCGAN
 from util.dataset import load_mnist
+from util.plot_images import plot_images
+from util.model_util import load_model
 
-
-def load_model(path):
-    model = DCGAN()
-    checkpoint = torch.load(path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    return model
-
-def rec_generate_images(model, device, mnist, n_images, n_recursions, reconstruct):
+def rec_generate_images(model, device, mnist, image_shape, n_images, n_recursions, reconstruct):
     model.eval()
     original = []
     reconstructed = [[] for _ in range(n_images)]
@@ -29,7 +23,7 @@ def rec_generate_images(model, device, mnist, n_images, n_recursions, reconstruc
                     reconstructed[i].append(x_hat.cpu().numpy())
         else:
             for i in range(n_images):
-                x = torch.randn(1, 3, 64, 64).to(device)
+                x = torch.randn(1, image_shape[0], image_shape[1], image_shape[2]).to(device)
                 original.append(x.cpu().numpy())
                 x_hat = x.to(device)
 
@@ -37,30 +31,7 @@ def rec_generate_images(model, device, mnist, n_images, n_recursions, reconstruc
                     x_hat = model(x_hat)
                     reconstructed[i].append(x_hat.cpu().numpy())
         
-    fig, axs = plt.subplots(1+n_recursions, n_images+1, figsize=(n_images, n_recursions + 1))
-    for col in range(n_images):
-        for row in range(n_recursions+1):
-            if col == 0:
-                # Display the correct label for each row
-                if row == 0:
-                    label = "$x$"
-                elif row <= 3:
-                    # Generate nested notation like f(f(...f(x)...))
-                    label = "$" + "f(" * row + "x" + ")" * row + "$"
-                else:
-                    label = f"$f^{row}(x)$"
-                axs[row, col].text(0.9, 0.5, label, ha="right", va="center", fontsize=12)
-                axs[row, col].axis('off')
-
-            if row == 0:
-                axs[0, col+1].imshow(original[col][0, 0], cmap='gray')
-                axs[0, col+1].axis('off')
-            else:
-                axs[row, col+1].imshow(reconstructed[col][row-1][0, 0], cmap='gray')
-                axs[row, col+1].axis('off')
-
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.show()
+    plot_images(original, reconstructed)
 
 if __name__=="__main__":
     """Usage: python generate.py --run_id <run_id> --epoch <epoch>"""    
@@ -73,6 +44,7 @@ if __name__=="__main__":
     # Setup
     n_images = 10
     n_recursions = 3
+    image_shape = (1, 28,28)
     run_id = args.run_id
     epoch = args.epoch
 
@@ -82,6 +54,6 @@ if __name__=="__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    rec_generate_images(model, device, mnist, n_images, n_recursions, reconstruct=True)
-    rec_generate_images(model, device, mnist, n_images, n_recursions, reconstruct=False)
+    rec_generate_images(model, device, mnist, n_images, n_recursions, image_shape=image_shape, reconstruct=True)
+    rec_generate_images(model, device, mnist, n_images, n_recursions, image_shape=image_shape, reconstruct=False)
 

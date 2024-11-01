@@ -4,10 +4,11 @@ from torchvision.datasets.mnist import MNIST
 
 def load_mnist(batch_size=256, download=True, num_workers=3, pin_memory=False) -> DataLoader:
     transform = transforms.Compose([
-    transforms.Resize(64),  
-    transforms.Grayscale(num_output_channels=3),
+    #transforms.Resize(64),  
+    #transforms.Grayscale(num_output_channels=3),
     transforms.ToTensor(),
-    transforms.Normalize([0.5]*3, [0.5]*3)  # Normalize to [-1, 1]
+    # transforms.Normalize([0.5]*3, [0.5]*3)
+    transforms.Normalize([0.5], [0.5])  # Normalize to [-1, 1]
     ])
 
     mnist = DataLoader(

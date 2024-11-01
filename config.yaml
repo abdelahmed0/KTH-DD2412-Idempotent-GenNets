@@ -1,8 +1,8 @@
-run_id: "IGNITE_MNIST"
+run_id: "IGNITE_MNIST_1_CHANNEL"
 
 training:
   n_epochs: 1000
-  batch_size: 256
+  batch_size: 512
   save_period: 100
   compile_model: true
   manifold_warmup:
@@ -23,7 +23,7 @@ optimizer:
   betas: [0.5, 0.999]
 
 model:
-  architecture: "DCGAN"
+  architecture: "DCGAN_MNIST"
 
 dataset:
   name: "MNIST"

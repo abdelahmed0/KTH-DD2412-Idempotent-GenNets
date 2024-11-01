@@ -136,7 +136,7 @@ def main():
     device = torch.device("cuda" if config['device']['use_cuda'] and torch.cuda.is_available() else "cpu")
 
     # Initialize models
-    model = DCGAN()
+    model = DCGAN(config['model']['architecture'])
     model_copy = copy.deepcopy(model).requires_grad_(False)
 
     model.to(device)
