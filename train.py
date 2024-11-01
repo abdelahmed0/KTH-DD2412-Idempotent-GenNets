@@ -6,7 +6,7 @@ from tqdm import tqdm
 import yaml
 
 from model.dcgan import DCGAN
-from util.dataset import load_mnist
+from util.dataset import load_mnist, load_celeb_a
 
 from torch.nn import functional as F
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -126,6 +126,12 @@ def main():
                                  num_workers=config['dataset']['num_workers'],
                                  pin_memory=config['dataset']['pin_memory'],
                                  single_channel=config['dataset']['single_channel'])
+    elif dataset_name.lower() == "celeba":
+        data_loader = load_celeb_a(batch_size=config['training']['batch_size'],
+                                 download=config['dataset']['download'],
+                                 num_workers=config['dataset']['num_workers'],
+                                 pin_memory=config['dataset']['pin_memory'],
+                                 split='train')
     else:
         raise NotImplementedError(f"Dataset {dataset_name} is not supported yet.")
 
