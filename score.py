@@ -3,7 +3,7 @@ import argparse
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dcgan import DCGAN
+from model.dcgan import DCGAN
 from util.dataset import load_mnist
 from util.scoring import evaluate_generator
 

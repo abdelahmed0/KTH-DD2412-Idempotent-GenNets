@@ -1,6 +1,6 @@
 import torch
 
-from ..dcgan import DCGAN
+from model.dcgan import DCGAN
 
 def load_model(path) -> DCGAN:
     checkpoint = torch.load(path)

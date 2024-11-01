@@ -2,7 +2,7 @@ run_id: "IGNITE_MNIST_1_CHANNEL"
 
 training:
   n_epochs: 1000
-  batch_size: 512
+  batch_size: 256
   save_period: 100
   compile_model: true
   manifold_warmup:

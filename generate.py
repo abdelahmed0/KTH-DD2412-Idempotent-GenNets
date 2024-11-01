@@ -1,7 +1,7 @@
 import torch
 import argparse
 
-from dcgan import DCGAN
+from model.dcgan import DCGAN
 from util.dataset import load_mnist
 from util.plot_images import plot_images
 from util.model_util import load_model
@@ -44,16 +44,16 @@ if __name__=="__main__":
     # Setup
     n_images = 10
     n_recursions = 3
-    image_shape = (1, 28,28)
+    image_shape = (1,28,28)
     run_id = args.run_id
     epoch = args.epoch
 
     model = load_model(f"checkpoints/{run_id}_epoch_{epoch}.pt")
-    mnist = load_mnist(batch_size=1)
+    mnist = load_mnist(batch_size=1, single_channel=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    rec_generate_images(model, device, mnist, n_images, n_recursions, image_shape=image_shape, reconstruct=True)
-    rec_generate_images(model, device, mnist, n_images, n_recursions, image_shape=image_shape, reconstruct=False)
+    rec_generate_images(model=model, device=device, mnist=mnist, n_images=n_images, n_recursions=n_recursions, image_shape=image_shape, reconstruct=True)
+    rec_generate_images(model=model, device=device, mnist=mnist, n_images=n_images, n_recursions=n_recursions, image_shape=image_shape, reconstruct=False)
 

@@ -5,7 +5,7 @@ import torch
 from tqdm import tqdm
 import yaml
 
-from dcgan import DCGAN
+from model.dcgan import DCGAN
 from util.dataset import load_mnist
 
 from torch.nn import functional as F
