@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 
-def plot_images(original: list, generated: list):
+def plot_images(original: list, generated: list, grayscale=True):
     """
     original: [n_images]
     generated: [n_images, n_recursions]
@@ -25,10 +25,16 @@ def plot_images(original: list, generated: list):
                 axs[row, col].axis('off')
 
             if row == 0:
-                axs[0, col+1].imshow(original[col][0, 0], cmap='gray')
+                if grayscale:
+                    axs[0, col+1].imshow(original[col][0, 0], cmap='gray')
+                else:
+                    axs[0, col+1].imshow(original[col][0].transpose((1,2,0))) # imshow expects [width, height, channels]
                 axs[0, col+1].axis('off')
             else:
-                axs[row, col+1].imshow(generated[col][row-1][0, 0], cmap='gray')
+                if grayscale:
+                    axs[row, col+1].imshow(generated[col][row-1][0, 0], cmap='gray')
+                else:
+                    axs[row, col+1].imshow(generated[col][row-1][0].transpose((1,2,0)))
                 axs[row, col+1].axis('off')
 
     plt.subplots_adjust(wspace=0, hspace=0)
