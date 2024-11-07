@@ -7,6 +7,7 @@ import yaml
 
 from model.dcgan import DCGAN
 from util.dataset import load_mnist, load_celeb_a
+from util.function_util import fourier_sample
 
 from torch.nn import functional as F
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -33,6 +34,7 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
     tight_clamp_ratio = config['losses']['tight_clamp_ratio']
     save_period = config['training']['save_period']
     run_id = config['run_id']
+    use_fourier_sampling = config['training'].get('use_fourier_sampling', False)
 
     # Manifold Warmup Parameters
     warmup_config = config['training'].get('manifold_warmup', {})
@@ -59,7 +61,13 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
         for batch_idx, (x, _) in enumerate(tqdm(data_loader, total=len(data_loader), position=0, desc="Train Step")):
             x = x.to(device)
 
-            z = torch.randn_like(x, device=device)
+            if use_fourier_sampling:
+                z = fourier_sample(x)
+                if epoch == 1 and batch_idx == 1:
+                    # Save the sampled image
+                    writer.add_image('Image/Sampled', z[0], 0)
+            else:
+                z = torch.randn_like(x, device=device)
 
             # Apply f to get all needed
             f_copy.load_state_dict(f.state_dict())
