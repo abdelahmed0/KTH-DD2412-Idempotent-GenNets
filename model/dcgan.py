@@ -3,17 +3,23 @@ from torch import nn
 
 
 
-""" 
+"""
     DCGAN implementation based on the 
     "Unsupervised representation learning with Deep Convolutional Generative Adversarial Networks" paper
 
     Parameters for the DCGAN model are taken from the "Idempotent Generative Networks" paper 
 """
 class DCGAN(nn.Module):
-    def __init__(self, architecture='DCGAN'):
+    def __init__(self, architecture='DCGAN', input_size=64):
         super(DCGAN, self).__init__()
-        self.encoder = Encoder(architecture=architecture)
-        self.decoder = Decoder(architecture=architecture)
+        if architecture == 'DCGAN_MNIST':
+            num_channels = 1
+        elif architecture == 'DCGAN':
+            num_channels = 3
+        else:
+            NotImplementedError(f"Architecture {architecture} is not supported yet.")
+        self.encoder = Encoder(num_channels, input_size, architecture)
+        self.decoder = Decoder(num_channels, input_size, architecture)
         self.weight_init()
 
     def forward(self, x):
@@ -25,42 +31,56 @@ class DCGAN(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
                 m.weight.data.normal_(0.0, 0.02)
-                m.bias.data.fill_(0)
-
+                
 
 class Encoder(nn.Module):
     """ 
         Discriminator for DCGAN
         Uses strided convolutions instead of pooling layers and no fully connected layers
     """
-    def __init__(self, architecture):
+    def __init__(self, num_channels, input_size, architecture):
         super(Encoder, self).__init__()
-        if 'DCGAN' == architecture:
-            self.model = nn.Sequential(
-                nn.Conv2d(3, 64, 4, 2, 1),
-                nn.LeakyReLU(0.2),
-                nn.Conv2d(64, 128, 4, 2, 1),
-                nn.BatchNorm2d(128),
-                nn.LeakyReLU(0.2),
-                nn.Conv2d(128, 256, 4, 2, 1),
-                nn.BatchNorm2d(256),
-                nn.LeakyReLU(0.2),
-                nn.Conv2d(256, 512, 4, 2, 1),
-                nn.BatchNorm2d(512),
-                nn.LeakyReLU(0.2),
-                nn.Conv2d(512, 512, 4, 1, 0)
-            )
-        elif 'DCGAN_MNIST' == architecture:
-            self.model = nn.Sequential(
-                nn.Conv2d(1, 32, 4, 2, 1),
-                nn.LeakyReLU(0.2),
-                nn.Conv2d(32, 64, 4, 2, 1),
-                nn.BatchNorm2d(64),
-                nn.LeakyReLU(0.2),
-                nn.Conv2d(64, 64, 4, 1, 0)
-            )
-        else:
-            NotImplementedError(f"Architecture {architecture} is not supported yet.")
+        layers = []
+
+        if architecture == 'DCGAN_MNIST':
+            # Encoder for MNIST (1x28x28)
+            layers += [
+                nn.Conv2d(num_channels, input_size, kernel_size=4, stride=2, padding=1, bias=False),  # [1,28,28] -> [64,14,14]
+                nn.LeakyReLU(0.2, inplace=True),
+
+                nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=False),  # [64,14,14] -> [128,7,7]
+                nn.LeakyReLU(0.2, inplace=True),
+
+                nn.BatchNorm2d(input_size * 2),
+                nn.Conv2d(input_size * 2, input_size * 4, kernel_size=3, stride=1, padding=1, bias=False),  # [128,7,7] -> [256,7,7]
+                nn.LeakyReLU(0.2, inplace=True),
+
+                nn.BatchNorm2d(input_size * 4),
+                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=3, stride=1, padding=1, bias=False)   # [256,7,7] -> [512,7,7]
+            ]
+        elif architecture == 'DCGAN':
+            # Encoder for DCGAN (3x64x64)
+            layers += [
+                nn.Conv2d(num_channels, input_size, kernel_size=4, stride=2, padding=1, bias=False),  # [3,64,64] -> [64,32,32]
+                nn.LeakyReLU(0.2, inplace=True),
+
+                nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=False),  # [64,32,32] -> [128,16,16]
+                nn.LeakyReLU(0.2, inplace=True),
+
+                nn.BatchNorm2d(input_size * 2),
+                nn.Conv2d(input_size * 2, input_size * 4, kernel_size=4, stride=2, padding=1, bias=False),  # [128,16,16] -> [256,8,8]
+                nn.LeakyReLU(0.2, inplace=True),
+
+                nn.BatchNorm2d(input_size * 4),
+                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=4, stride=2, padding=1, bias=False),  # [256,8,8] -> [512,4,4]
+                nn.LeakyReLU(0.2, inplace=True),
+
+                nn.BatchNorm2d(input_size * 8),
+                nn.Conv2d(input_size * 8, input_size * 8, kernel_size=4, stride=1, padding=0, bias=False)   # [512,4,4] -> [512,1,1]
+            ]
+
+        
+        self.model = nn.Sequential(*layers)
     
     def forward(self, x):
         return self.model(x)
@@ -71,38 +91,52 @@ class Decoder(nn.Module):
         Generator for DCGAN
         Uses fractional-strided convolutions instead of pooling layers and no fully connected layers
     """
-    def __init__(self, architecture):
+    def __init__(self, num_channels, input_size, architecture):
         super(Decoder, self).__init__()
-        if 'DCGAN' == architecture:
-            self.model = nn.Sequential(
-                nn.ConvTranspose2d(512, 512, 4, 1, 0),
-                nn.BatchNorm2d(512),
-                nn.ReLU(),
-                nn.ConvTranspose2d(512, 256, 4, 2, 1),
-                nn.BatchNorm2d(256),
-                nn.ReLU(),
-                nn.ConvTranspose2d(256, 128, 4, 2, 1),
-                nn.BatchNorm2d(128),
-                nn.ReLU(),
-                nn.ConvTranspose2d(128, 64, 4, 2, 1),
-                nn.BatchNorm2d(64),
-                nn.ReLU(),
-                nn.ConvTranspose2d(64, 3, 4, 2, 1),
+        layers = []
+        
+        if architecture == 'DCGAN_MNIST':
+            # Decoder for MNIST (1x28x28)
+            layers += [
+                nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=3, stride=1, padding=1, bias=False),  # [512,7,7] -> [256,7,7]
+                nn.ReLU(inplace=True),
+                nn.BatchNorm2d(input_size * 4),
+
+                nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=4, stride=2, padding=1, bias=False),  # [256,7,7] -> [128,14,14]
+                nn.ReLU(inplace=True),
+                nn.BatchNorm2d(input_size * 2),
+
+                nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=4, stride=2, padding=1, bias=False),      # [128,14,14] -> [64,28,28]
+                nn.ReLU(inplace=True),
+                nn.BatchNorm2d(input_size),
+
+                nn.ConvTranspose2d(input_size, num_channels, kernel_size=3, stride=1, padding=1, bias=False),      # [64,28,28] -> [1,28,28]
                 nn.Tanh()
-            )
-        elif 'DCGAN_MNIST' == architecture:
-            self.model = nn.Sequential(
-                nn.ConvTranspose2d(64, 64, 4, 1, 0),
-                nn.BatchNorm2d(64),
-                nn.ReLU(),
-                nn.ConvTranspose2d(64, 32, 4, 2, 1),
-                nn.BatchNorm2d(32),
-                nn.ReLU(),
-                nn.ConvTranspose2d(32, 1, 4, 2, 1),
+            ]
+        elif architecture == 'DCGAN':
+            # Decoder for DCGAN (3x64x64)
+            layers += [
+                nn.ConvTranspose2d(input_size * 8, input_size * 8, kernel_size=4, stride=1, padding=0, bias=False),  # [512,1,1] -> [512,4,4]
+                nn.ReLU(inplace=True),
+                nn.BatchNorm2d(input_size * 8),
+
+                nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=4, stride=2, padding=1, bias=False),  # [512,4,4] -> [256,8,8]
+                nn.ReLU(inplace=True),
+                nn.BatchNorm2d(input_size * 4),
+
+                nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=4, stride=2, padding=1, bias=False),  # [256,8,8] -> [128,16,16]
+                nn.ReLU(inplace=True),
+                nn.BatchNorm2d(input_size * 2),
+
+                nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=4, stride=2, padding=1, bias=False),      # [128,16,16] -> [64,32,32]
+                nn.ReLU(inplace=True),
+                nn.BatchNorm2d(input_size),
+
+                nn.ConvTranspose2d(input_size, num_channels, kernel_size=4, stride=2, padding=1, bias=False),      # [64,32,32] -> [3,64,64]
                 nn.Tanh()
-            )
-        else:
-            NotImplementedError(f"Architecture {architecture} is not supported yet.")
+            ]
+        
+        self.model = nn.Sequential(*layers)
     
     def forward(self, x):
         return self.model(x)
@@ -113,4 +147,9 @@ if __name__ == "__main__":
 
     x = torch.randn(1, 3, 64, 64)
     y = model(x)
+    print(y.shape)
+
+    model_mnist = DCGAN(architecture='DCGAN_MNIST')
+    x = torch.randn(1, 1, 28, 28)
+    y = model_mnist(x)
     print(y.shape)
