@@ -28,6 +28,7 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
     """Train the Idempotent Generative Network with optional Manifold Expansion Warmup"""
 
     n_epochs = config['training']['n_epochs']
+    loss_function = config['losses']['loss_function']
     lambda_rec = config['losses']['lambda_rec']
     lambda_idem = config['losses']['lambda_idem']
     lambda_tight_end = config['losses']['lambda_tight']
@@ -42,6 +43,18 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
     warmup_epochs = warmup_config.get('warmup_epochs', 0)
     lambda_tight_start = warmup_config.get('lambda_tight_start', lambda_tight_end)
     schedule_type = warmup_config.get('schedule_type', 'linear')
+
+    # Loss function
+    if loss_function == "L1":
+        rec_func = F.l1_loss
+        idem_func = F.l1_loss
+        tight_func = F.l1_loss
+    elif loss_function == "MSE":
+        rec_func = F.mse_loss
+        idem_func = F.mse_loss
+        tight_func = F.mse_loss
+    else:
+        NotImplementedError(f"Loss function '{loss_function}' is not supported yet.") 
 
     f.train()
     f_copy.eval()
@@ -78,9 +91,9 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
             f_fz = f_copy(fz)
 
             # Calculate losses
-            loss_rec = F.l1_loss(fx, x)
-            loss_idem = F.l1_loss(f_fz, fz)
-            loss_tight = F.l1_loss(ff_z, f_z)
+            loss_rec = rec_func(fx, x)
+            loss_idem = idem_func(f_fz, fz)
+            loss_tight = tight_func(ff_z, f_z)
 
             # Smoothen tightness loss
             loss_tight = torch.tanh(loss_tight / (tight_clamp_ratio * loss_rec)) * tight_clamp_ratio * loss_rec
