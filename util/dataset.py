@@ -51,7 +51,7 @@ def load_celeb_a(
     transform = transforms.Compose(
         [
             transforms.ToTensor(),
-            transforms.CenterCrop(64),
+            transforms.Resize(64),
             transforms.Normalize([0.5]* 3, [0.5] * 3),  # Normalize to [-1, 1]
         ]
     )

@@ -17,7 +17,7 @@ class DCGAN(nn.Module):
         elif architecture == 'DCGAN':
             num_channels = 3
         else:
-            NotImplementedError(f"Architecture {architecture} is not supported yet.")
+            raise NotImplementedError(f"Architecture {architecture} is not supported yet.")
         self.encoder = Encoder(num_channels, input_size, architecture)
         self.decoder = Decoder(num_channels, input_size, architecture)
         self.weight_init()
