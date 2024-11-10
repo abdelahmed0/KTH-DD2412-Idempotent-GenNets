@@ -118,10 +118,10 @@ def train(f, f_copy, opt, data_loader, config, device, writer: SummaryWriter):
 
             if ((epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs) and batch_idx == 1:
                 # Save the sampled image
-                writer.add_image('Image/Generated', fz[0], epoch)
-                writer.add_image('Image/Noise', z[0], epoch)
-                writer.add_image('Image/Reconstructed', fx[0], epoch)
-                writer.add_image('Image/Original', x[0], epoch)
+                writer.add_image('Image/Generated', fz[0], epoch+1)
+                writer.add_image('Image/Noise', z[0], epoch+1)
+                writer.add_image('Image/Reconstructed', fx[0], epoch+1)
+                writer.add_image('Image/Original', x[0], epoch+1)
 
         if (epoch + 1) % save_period == 0 or (epoch + 1) == n_epochs:
             checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{epoch+1}.pt")
