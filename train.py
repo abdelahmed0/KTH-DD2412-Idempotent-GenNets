@@ -2,15 +2,15 @@ import argparse
 import copy
 import os
 import torch
-from tqdm import tqdm
 import yaml
+
+from torch.nn import functional as F
+from torch.utils.tensorboard.writer import SummaryWriter
+from tqdm import tqdm
 
 from model.dcgan import DCGAN
 from util.dataset import load_mnist, load_celeb_a
 from util.function_util import fourier_sample
-
-from torch.nn import functional as F
-from torch.utils.tensorboard.writer import SummaryWriter
 
 
 def setup_dirs(config):
@@ -24,7 +24,7 @@ def load_config(config_path):
     return config
 
 
-def train(f, f_copy, opt, data_loader, config, device, writer):
+def train(f, f_copy, opt, data_loader, config, device, writer: SummaryWriter):
     """Train the Idempotent Generative Network with optional Manifold Expansion Warmup"""
 
     n_epochs = config['training']['n_epochs']
@@ -34,6 +34,7 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
     lambda_tight_end = config['losses']['lambda_tight']
     tight_clamp_ratio = config['losses']['tight_clamp_ratio']
     save_period = config['training']['save_period']
+    image_log_period = config['training'].get('image_log_period', 100)
     run_id = config['run_id']
     use_fourier_sampling = config['training'].get('use_fourier_sampling', False)
 
@@ -45,16 +46,18 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
     schedule_type = warmup_config.get('schedule_type', 'linear')
 
     # Loss function
-    if loss_function == "L1":
+    if loss_function.lower() == "l1":
         rec_func = F.l1_loss
         idem_func = F.l1_loss
         tight_func = F.l1_loss
-    elif loss_function == "MSE":
+    elif loss_function.lower() == "mse":
         rec_func = F.mse_loss
         idem_func = F.mse_loss
         tight_func = F.mse_loss
     else:
-        NotImplementedError(f"Loss function '{loss_function}' is not supported yet.") 
+        raise NotImplementedError(f"Loss function '{loss_function}' is not supported yet.") 
+    
+    writer.add_text("config", f"``` {config} ```")
 
     f.train()
     f_copy.eval()
@@ -87,7 +90,7 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
             fx = f(x)
             fz = f(z)
             f_z = fz.detach()
-            ff_z = f_copy(f_z)
+            ff_z = f(f_z)
             f_fz = f_copy(fz)
 
             # Calculate losses
@@ -112,6 +115,13 @@ def train(f, f_copy, opt, data_loader, config, device, writer):
             writer.add_scalar('Loss/Idempotence', loss_idem.item(), update_step)
             writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
             writer.add_scalar('Hyperparameters/Lambda_Tight', lambda_tight, update_step)
+
+            if ((epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs) and batch_idx == 1:
+                # Save the sampled image
+                writer.add_image('Image/Generated', fz[0], epoch)
+                writer.add_image('Image/Noise', z[0], epoch)
+                writer.add_image('Image/Reconstructed', fx[0], epoch)
+                writer.add_image('Image/Original', x[0], epoch)
 
         if (epoch + 1) % save_period == 0 or (epoch + 1) == n_epochs:
             checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{epoch+1}.pt")
