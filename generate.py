@@ -7,13 +7,13 @@ from util.plot_images import plot_images
 from util.model_util import load_model
 from util.function_util import fourier_sample
 
-def rec_generate_images(model, device, mnist, image_shape, n_images, n_recursions, reconstruct, grayscale, use_fourier_sampling):
+def rec_generate_images(model, device, data, image_shape, n_images, n_recursions, reconstruct, grayscale, use_fourier_sampling):
     model.eval()
     original = []
     reconstructed = [[] for _ in range(n_images)]
     with torch.no_grad():
         if reconstruct:
-            for i, (x, _) in enumerate(mnist):
+            for i, (x, _) in enumerate(data):
                 if i == n_images:
                     break
                 original.append((x.numpy() * 0.5) + 0.5) # from pixel values [-1,1] to [0,1]
@@ -23,7 +23,7 @@ def rec_generate_images(model, device, mnist, image_shape, n_images, n_recursion
                     x_hat = model(x_hat)
                     reconstructed[i].append((x_hat.cpu().numpy() * 0.5) + 0.5)
         else:
-            batch, _ = next(iter(mnist))
+            batch, _ = next(iter(data))
             for i in range(n_images):
                 if use_fourier_sampling:
                     x = fourier_sample(batch)
@@ -35,7 +35,7 @@ def rec_generate_images(model, device, mnist, image_shape, n_images, n_recursion
                 for _ in range(n_recursions):
                     x_hat = model(x_hat)
                     reconstructed[i].append((x_hat.cpu().numpy() * 0.5) + 0.5)
-        
+    
     plot_images(original, reconstructed, grayscale=grayscale)
 
 if __name__=="__main__":
@@ -46,24 +46,28 @@ if __name__=="__main__":
     parser.add_argument("--epoch", type=int, required=True)
     args = parser.parse_args()
 
+
     # Setup
+    use_mnist = True
+    use_fourier_sampling = True
     n_images = 10
     n_recursions = 3
-    #image_shape = (3,64,64)
-    image_shape = (1,28,28)
-    grayscale = True
+
+    
+    image_shape = (1,28,28) if use_mnist else (3,64,64)
+    grayscale = True if use_mnist else False
     run_id = args.run_id
     epoch = args.epoch
-    
-    use_fourier_sampling = True
 
     model = load_model(f"checkpoints/{run_id}_epoch_{epoch}.pt")
-    mnist = load_mnist(batch_size=10, single_channel=True)
-    #mnist = load_celeb_a(batch_size=1, split='train')
+    if use_mnist:
+        data = load_mnist(batch_size=10, single_channel=True)
+    else:
+        data = load_celeb_a(batch_size=1, split='train')
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    rec_generate_images(model=model, device=device, mnist=mnist, n_images=n_images, n_recursions=n_recursions, image_shape=image_shape, reconstruct=True, grayscale=grayscale, use_fourier_sampling=use_fourier_sampling)
-    rec_generate_images(model=model, device=device, mnist=mnist, n_images=n_images, n_recursions=n_recursions, image_shape=image_shape, reconstruct=False, grayscale=grayscale, use_fourier_sampling=use_fourier_sampling)
+    rec_generate_images(model=model, device=device, data=data, n_images=n_images, n_recursions=n_recursions, image_shape=image_shape, reconstruct=True, grayscale=grayscale, use_fourier_sampling=use_fourier_sampling)
+    rec_generate_images(model=model, device=device, data=data, n_images=n_images, n_recursions=n_recursions, image_shape=image_shape, reconstruct=False, grayscale=grayscale, use_fourier_sampling=use_fourier_sampling)
 
