@@ -7,7 +7,7 @@ from util.plot_images import plot_images
 from util.model_util import load_model
 from util.function_util import fourier_sample
 
-def rec_generate_images(model, device, data, image_shape, n_images, n_recursions, reconstruct, grayscale, use_fourier_sampling):
+def rec_generate_images(model, device, data, n_images, n_recursions, reconstruct, use_fourier_sampling):
     model.eval()
     original = []
     reconstructed = [[] for _ in range(n_images)]
@@ -16,27 +16,29 @@ def rec_generate_images(model, device, data, image_shape, n_images, n_recursions
             for i, (x, _) in enumerate(data):
                 if i == n_images:
                     break
-                original.append((x.numpy() * 0.5) + 0.5) # from pixel values [-1,1] to [0,1]
+
+                original.append(x) # from pixel values [-1,1] to [0,1]
                 x_hat = x.to(device)
 
                 for _ in range(n_recursions):
                     x_hat = model(x_hat)
-                    reconstructed[i].append((x_hat.cpu().numpy() * 0.5) + 0.5)
+                    reconstructed[i].append(x_hat.cpu())
         else:
             batch, _ = next(iter(data))
             for i in range(n_images):
                 if use_fourier_sampling:
                     x = fourier_sample(batch)
                 else:
-                    x = torch.randn(1, image_shape[0], image_shape[1], image_shape[2]).to(device)
-                original.append(x.cpu().numpy())
+                    x = torch.randn_like(batch).to(device)
+                original.append(x.cpu())
                 x_hat = x.to(device)
 
                 for _ in range(n_recursions):
                     x_hat = model(x_hat)
-                    reconstructed[i].append((x_hat.cpu().numpy() * 0.5) + 0.5)
+                    reconstructed[i].append(x_hat.cpu())
     
-    plot_images(original, reconstructed, grayscale=grayscale)
+    return original, reconstructed
+    
 
 if __name__=="__main__":
     """Usage: python generate.py --run_id <run_id> --epoch <epoch>"""    
@@ -54,7 +56,6 @@ if __name__=="__main__":
     n_recursions = 3
 
     
-    image_shape = (1,28,28) if use_mnist else (3,64,64)
     grayscale = True if use_mnist else False
     run_id = args.run_id
     epoch = args.epoch
@@ -68,6 +69,8 @@ if __name__=="__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    rec_generate_images(model=model, device=device, data=data, n_images=n_images, n_recursions=n_recursions, image_shape=image_shape, reconstruct=True, grayscale=grayscale, use_fourier_sampling=use_fourier_sampling)
-    rec_generate_images(model=model, device=device, data=data, n_images=n_images, n_recursions=n_recursions, image_shape=image_shape, reconstruct=False, grayscale=grayscale, use_fourier_sampling=use_fourier_sampling)
+    original, reconstructed = rec_generate_images(model=model, device=device, data=data, n_images=n_images, n_recursions=n_recursions, reconstruct=True, use_fourier_sampling=use_fourier_sampling)
+    plot_images(original, reconstructed, grayscale=grayscale)
+    original, reconstructed = rec_generate_images(model=model, device=device, data=data, n_images=n_images, n_recursions=n_recursions, reconstruct=False, use_fourier_sampling=use_fourier_sampling)
+    plot_images(original, reconstructed, grayscale=grayscale)
 

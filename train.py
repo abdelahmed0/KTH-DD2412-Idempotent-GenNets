@@ -5,12 +5,15 @@ import torch
 import yaml
 
 from torch.nn import functional as F
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm
 
 from model.dcgan import DCGAN
 from util.dataset import load_mnist, load_celeb_a
 from util.function_util import fourier_sample
+from util.model_util import load_checkpoint
+from generate import rec_generate_images
 
 
 def setup_dirs(config):
@@ -24,7 +27,7 @@ def load_config(config_path):
     return config
 
 
-def train(f, f_copy, opt, data_loader, config, device, writer: SummaryWriter):
+def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: DataLoader, config: dict, device: str, writer: SummaryWriter):
     """Train the Idempotent Generative Network with optional Manifold Expansion Warmup"""
 
     n_epochs = config['training']['n_epochs']
@@ -62,7 +65,7 @@ def train(f, f_copy, opt, data_loader, config, device, writer: SummaryWriter):
     f.train()
     f_copy.eval()
 
-    for epoch in tqdm(range(n_epochs), position=1, desc="Epoch"):
+    for epoch in tqdm(range(config.get('start_epoch', 0), n_epochs), position=1, desc="Epoch", total=n_epochs, initial=config.get('start_epoch', 0)):
         # Calculate current lambda_tight based on warmup schedule
         if warmup_enabled and epoch < warmup_epochs:
             if schedule_type == "linear":
@@ -116,12 +119,16 @@ def train(f, f_copy, opt, data_loader, config, device, writer: SummaryWriter):
             writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
             writer.add_scalar('Hyperparameters/Lambda_Tight', lambda_tight, update_step)
 
-            if ((epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs) and batch_idx == 1:
-                # Save the sampled image
-                writer.add_image('Image/Generated', fz[0], epoch+1)
-                writer.add_image('Image/Noise', z[0], epoch+1)
-                writer.add_image('Image/Reconstructed', fx[0], epoch+1)
-                writer.add_image('Image/Original', x[0], epoch+1)
+        if (epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs:
+            # Save the sampled image
+            original, reconstructed = rec_generate_images(model=f, device=device, data=data_loader, n_images=1, n_recursions=1, reconstruct=True, use_fourier_sampling=use_fourier_sampling)
+            noise, generated = rec_generate_images(model=f, device=device, data=data_loader, n_images=1, n_recursions=1, reconstruct=False, use_fourier_sampling=use_fourier_sampling)
+
+            writer.add_images('Image/Generated', generated[0][0][:5].detach(), epoch+1)
+            writer.add_images('Image/Noise', noise[0][:5].detach(), epoch+1)
+            writer.add_images('Image/Reconstructed', reconstructed[0][0][:5].detach(), epoch+1)
+            writer.add_images('Image/Original', original[0][:5].detach(), epoch+1)
+            tqdm.write(f"Logged images for epoch [{epoch+1}/{n_epochs}]")
 
         if (epoch + 1) % save_period == 0 or (epoch + 1) == n_epochs:
             checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{epoch+1}.pt")
@@ -140,10 +147,16 @@ def main():
     # Parse arguments
     parser = argparse.ArgumentParser(description="Train Idempotent Generative Networks")
     parser.add_argument("--config", type=str, default="config.yaml", help="Path to the config file")
+    parser.add_argument("--resume", type=str, default=None, help="Resume training from the specified checkpoint")
     args = parser.parse_args()
 
     # Load configuration
-    config = load_config(args.config)
+    if args.resume is None:
+        config = load_config(args.config)
+    else:
+        checkpoint = load_checkpoint(args.resume)
+        config = checkpoint['config']
+        config['start_epoch'] = checkpoint['epoch']
     run_id = config['run_id']
 
     # Setup directories
@@ -175,6 +188,8 @@ def main():
 
     # Initialize models
     model = DCGAN(config['model']['architecture'])
+    if args.resume is not None:
+        model.load_state_dict(checkpoint['model_state_dict'])
     model_copy = copy.deepcopy(model).requires_grad_(False)
 
     model.to(device)
@@ -193,6 +208,9 @@ def main():
                                      betas=optimizer_config['betas'])
     else:
         raise NotImplementedError(f"Optimizer type {optimizer_config['type']} is not supported.")
+    
+    if args.resume is not None:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     try:
         train(
