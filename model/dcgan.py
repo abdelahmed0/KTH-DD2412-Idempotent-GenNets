@@ -56,7 +56,7 @@ class Encoder(nn.Module):
                 nn.LeakyReLU(0.2, inplace=True),
 
                 nn.BatchNorm2d(input_size * 4),
-                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=3, stride=1, padding=1, bias=False)   # [256,7,7] -> [512,7,7]
+                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=7, stride=1, padding=0, bias=False)   # [256,7,7] -> [512,1,1]
             ]
         elif architecture == 'DCGAN':
             # Encoder for DCGAN (3x64x64)
@@ -98,7 +98,7 @@ class Decoder(nn.Module):
         if architecture == 'DCGAN_MNIST':
             # Decoder for MNIST (1x28x28)
             layers += [
-                nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=3, stride=1, padding=1, bias=False),  # [512,7,7] -> [256,7,7]
+                nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=7, stride=1, padding=0, bias=False),  # [512,1,1] -> [256,7,7]
                 nn.ReLU(inplace=True),
                 nn.BatchNorm2d(input_size * 4),
 
