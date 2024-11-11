@@ -50,8 +50,8 @@ def load_celeb_a(
 ) -> DataLoader:
     transform = transforms.Compose(
         [
+            transforms.Resize((64, 64)),
             transforms.ToTensor(),
-            transforms.Resize(64),
             transforms.Normalize([0.5]* 3, [0.5] * 3),  # Normalize to [-1, 1]
         ]
     )
@@ -85,7 +85,7 @@ if __name__ == '__main__':
 
     celeb = load_celeb_a(batch_size=32)
     celeb_image = next(iter(celeb))[0]
-    assert celeb_image.shape == (32, 3, 64, 64)
+    assert celeb_image.shape == (32, 3, 64, 64), f"Got {celeb_image.shape}, not (32, 3, 64, 64)"
     assert celeb_image.min() >= -1
     assert celeb_image.max() <= 1
     assert celeb_image.min() < 0
