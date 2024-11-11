@@ -121,8 +121,10 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
 
         if (epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs:
             # Save the sampled image
+            f.eval()
             original, reconstructed = rec_generate_images(model=f, device=device, data=data_loader, n_images=1, n_recursions=1, reconstruct=True, use_fourier_sampling=use_fourier_sampling)
             noise, generated = rec_generate_images(model=f, device=device, data=data_loader, n_images=1, n_recursions=1, reconstruct=False, use_fourier_sampling=use_fourier_sampling)
+            f.train()
 
             writer.add_images('Image/Generated', generated[0][0][:5].detach(), epoch+1)
             writer.add_images('Image/Noise', noise[0][:5].detach(), epoch+1)
