@@ -1,11 +1,12 @@
-run_id: "MNIST_L2_FOURIER"
+run_id: "MNIST_GAUSSIAN_MSE"
 
 training:
   n_epochs: 1000
-  batch_size: 256
+  batch_size: 512
   save_period: 100
+  image_log_period: 10
   compile_model: true
-  use_fourier_sampling: true
+  use_fourier_sampling: false
   manifold_warmup:
     enabled: false
     warmup_epochs: 100
@@ -13,8 +14,9 @@ training:
     schedule_type: "linear" # Type of scheduling ("linear" or "exponential")
 
 losses:
+  loss_function: "MSE" # MSE, L1
   lambda_rec: 20
-  lambda_idem: 10           # NOTE: Changed from default 20 to 10 because of Mode Collapse
+  lambda_idem: 20
   lambda_tight: 2.5         # If warmup is enabled, this value is the end value of lambda_tight
   tight_clamp_ratio: 1.5
 
