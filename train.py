@@ -35,6 +35,7 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
     lambda_rec = config['losses']['lambda_rec']
     lambda_idem = config['losses']['lambda_idem']
     lambda_tight_end = config['losses']['lambda_tight']
+    tight_clamp = config['losses']['tight_clamp']
     tight_clamp_ratio = config['losses']['tight_clamp_ratio']
     save_period = config['training']['save_period']
     image_log_period = config['training'].get('image_log_period', 100)
@@ -82,9 +83,6 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
 
             if use_fourier_sampling:
                 z = fourier_sample(x)
-                if epoch == 1 and batch_idx == 1:
-                    # Save the sampled image
-                    writer.add_image('Image/Sampled', z[0], 0)
             else:
                 z = torch.randn_like(x, device=device)
 
@@ -99,13 +97,14 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
             # Calculate losses
             loss_rec = rec_func(fx, x)
             loss_idem = idem_func(f_fz, fz)
-            loss_tight = tight_func(ff_z, f_z)
+            loss_tight = -tight_func(ff_z, f_z)
 
             # Smoothen tightness loss
-            loss_tight = torch.tanh(loss_tight / (tight_clamp_ratio * loss_rec)) * tight_clamp_ratio * loss_rec
+            if tight_clamp:
+                loss_tight = torch.tanh(loss_tight / (tight_clamp_ratio * loss_rec)) * tight_clamp_ratio * loss_rec
 
             # Optimize for losses
-            loss = lambda_rec * loss_rec + lambda_idem * loss_idem - lambda_tight * loss_tight
+            loss = lambda_rec * loss_rec + lambda_idem * loss_idem + lambda_tight * loss_tight
             opt.zero_grad()
             loss.backward()
             opt.step()
