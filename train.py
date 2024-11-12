@@ -118,6 +118,8 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
             writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
             writer.add_scalar('Hyperparameters/Lambda_Tight', lambda_tight, update_step)
 
+        config['current_epoch'] = epoch # Used when terminating training
+
         if (epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs:
             # Save the sampled image
             f.eval()
@@ -188,7 +190,7 @@ def main():
     device = torch.device("cuda" if config['device']['use_cuda'] and torch.cuda.is_available() else "cpu")
 
     # Initialize models
-    model = DCGAN(config['model']['architecture'])
+    model = DCGAN(architecture=config['model']['architecture'], use_bias=config['model']['use_bias'])
     if args.resume is not None:
         model.load_state_dict(checkpoint['model_state_dict'])
     model_copy = copy.deepcopy(model).requires_grad_(False)
@@ -225,6 +227,16 @@ def main():
         )
     except KeyboardInterrupt:
         print("Training interrupted.")
+        ans = input("Do you want to save a checkpoint (Y/N)?" )
+        if ans.lower() in ['yes', 'y']:
+            checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{config['current_epoch']+1}.pt")
+            torch.save({
+                'epoch': config['current_epoch'] + 1,
+                'model_state_dict': getattr(model, '_orig_mod', model).state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'config': config
+            }, checkpoint_path)
+            print("Saved model to: ", checkpoint_path)
     finally:
         writer.close()
 
