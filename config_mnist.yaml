@@ -1,9 +1,9 @@
-run_id: "MNIST_GAUSSIAN_MSE"
+run_id: "MNIST_GAUSSIAN_NO_TIGHT_CLAMP"
 
 training:
   n_epochs: 1000
-  batch_size: 512
-  save_period: 100
+  batch_size: 256
+  save_period: 50
   image_log_period: 10
   compile_model: true
   use_fourier_sampling: false
@@ -15,10 +15,11 @@ training:
 
 losses:
   loss_function: "MSE" # MSE, L1
+  tight_clamp: false
+  tight_clamp_ratio: 1.5
   lambda_rec: 20
   lambda_idem: 20
   lambda_tight: 2.5         # If warmup is enabled, this value is the end value of lambda_tight
-  tight_clamp_ratio: 1.5
 
 optimizer:
   type: "Adam"
@@ -27,6 +28,7 @@ optimizer:
 
 model:
   architecture: "DCGAN_MNIST" # DCGAN & DCGAN_MNIST
+  use_bias: false
 
 dataset:
   name: "mnist" # MNIST, CELEBA

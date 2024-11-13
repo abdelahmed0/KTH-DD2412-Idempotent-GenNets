@@ -7,7 +7,9 @@ from torch import nn
     DCGAN implementation based on the 
     "Unsupervised representation learning with Deep Convolutional Generative Adversarial Networks" paper
 
-    Parameters for the DCGAN model are taken from the "Idempotent Generative Networks" paper 
+    Parameters for the DCGAN model are taken from the "Idempotent Generative Networks" paper
+    MNIST Layout stolen from https://github.com/kpandey008/dcgan 
+    and then modified by including Dropout and GroupNorm layers
 """
 class DCGAN(nn.Module):
     def __init__(self, architecture='DCGAN', input_size=64, use_bias=False):
@@ -45,20 +47,27 @@ class Encoder(nn.Module):
         layers = []
 
         if architecture == 'DCGAN_MNIST':
-            # Encoder for MNIST (1x28x28)
             layers += [
-                nn.Conv2d(num_channels, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [1,28,28] -> [64,14,14]
-                nn.LeakyReLU(0.2, inplace=True),
+                nn.Conv2d(num_channels, input_size, 4, 2, 1, bias=False),  # [1,28,28] -> [64,14,14]
+                nn.Dropout2d(0.1),
+                nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-                nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [64,14,14] -> [128,7,7]
-                nn.LeakyReLU(0.2, inplace=True),
+                nn.GroupNorm(num_groups=8, num_channels=input_size),
+                nn.Conv2d(input_size, input_size * 2, 4, 2, 1, bias=False),  # [64,14,14] -> [128,7,7]
+                nn.Dropout2d(0.1),
+                nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-                nn.BatchNorm2d(input_size * 2),
-                nn.Conv2d(input_size * 2, input_size * 4, kernel_size=3, stride=1, padding=1, bias=use_bias),  # [128,7,7] -> [256,7,7]
-                nn.LeakyReLU(0.2, inplace=True),
+                nn.GroupNorm(num_groups=8, num_channels=input_size * 2),
+                nn.Conv2d(input_size * 2, input_size * 4, 3, 1, 0, bias=False),  # [128,7,7] -> [256,5,5]
+                nn.Dropout2d(0.1),
+                nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-                nn.BatchNorm2d(input_size * 4),
-                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=7, stride=1, padding=0, bias=use_bias)   # [256,7,7] -> [512,1,1]
+                nn.GroupNorm(num_groups=8, num_channels=input_size * 4),
+                nn.Conv2d(input_size * 4, input_size * 8, 3, 1, 0, bias=False),  # [256,5,5] -> [512,3,3]
+                nn.Dropout2d(0.1),
+                nn.LeakyReLU(negative_slope=0.2, inplace=True),
+
+                nn.Conv2d(input_size * 8, input_size * 8, 3, 1, 0, bias=False), # [512,3,3] -> [512,1,1]
             ]
         elif architecture == 'DCGAN':
             # Encoder for DCGAN (3x64x64)
@@ -98,22 +107,30 @@ class Decoder(nn.Module):
         layers = []
         
         if architecture == 'DCGAN_MNIST':
-            # Decoder for MNIST (1x28x28)
+            in_channels = input_size * 8
             layers += [
-                nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=7, stride=1, padding=0, bias=use_bias),  # [512,1,1] -> [256,7,7]
-                nn.ReLU(inplace=True),
-                nn.BatchNorm2d(input_size * 4),
+                nn.GroupNorm(num_groups=8, num_channels=in_channels),
+                nn.ConvTranspose2d(in_channels, in_channels // 2, 3, 1, 0, bias=False),  # [512,1,1] -> [256,3,3]
+                nn.Dropout2d(0.1),
+                nn.ReLU(True),
 
-                nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [256,7,7] -> [128,14,14]
-                nn.ReLU(inplace=True),
-                nn.BatchNorm2d(input_size * 2),
+                nn.GroupNorm(num_groups=8, num_channels=in_channels // 2),
+                nn.ConvTranspose2d(in_channels // 2, in_channels // 4, 3, 1, 0, bias=False),  # [256,3,3] -> [128,5,5]
+                nn.Dropout2d(0.1),
+                nn.ReLU(True),
 
-                nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),      # [128,14,14] -> [64,28,28]
-                nn.ReLU(inplace=True),
-                nn.BatchNorm2d(input_size),
+                nn.GroupNorm(num_groups=8, num_channels=in_channels // 4),
+                nn.ConvTranspose2d(in_channels // 4, in_channels // 8, 3, 1, 0, bias=False),  # [128,5,5] -> [64,7,7]
+                nn.Dropout2d(0.1),
+                nn.ReLU(True),
 
-                nn.ConvTranspose2d(input_size, num_channels, kernel_size=3, stride=1, padding=1, bias=use_bias),      # [64,28,28] -> [1,28,28]
-                nn.Tanh()
+                nn.GroupNorm(num_groups=8, num_channels=in_channels // 8),
+                nn.ConvTranspose2d(in_channels // 8, in_channels // 16, 4, 2, 1, bias=False),  # [64,7,7] -> [32,14,14]
+                nn.Dropout2d(0.1),
+                nn.ReLU(True),
+
+                nn.ConvTranspose2d(in_channels // 16, num_channels, 4, 2, 1, bias=False),  # [32,14,14] -> [1,28,28]
+                nn.Tanh(),
             ]
         elif architecture == 'DCGAN':
             # Decoder for DCGAN (3x64x64)
