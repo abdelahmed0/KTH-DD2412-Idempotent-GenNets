@@ -9,20 +9,20 @@ from util.function_util import fourier_sample
 
 def rec_generate_images(model, device, data, n_images, n_recursions, reconstruct, use_fourier_sampling):
     model.eval()
-    original = []
-    reconstructed = [[] for _ in range(n_images)]
+    original = torch.empty(n_images, *next(iter(data))[0].shape[1:]) # []
+    reconstructed = torch.empty(n_images, n_recursions, *next(iter(data))[0].shape[1:]) #[[] for _ in range(n_images)]
     with torch.no_grad():
         if reconstruct:
             for i, (x, _) in enumerate(data):
                 if i == n_images:
                     break
 
-                original.append(x) # from pixel values [-1,1] to [0,1]
+                original[i] = x[0]
                 x_hat = x.to(device)
 
-                for _ in range(n_recursions):
+                for j in range(n_recursions):
                     x_hat = model(x_hat)
-                    reconstructed[i].append(x_hat.cpu())
+                    reconstructed[i, j] = x_hat[0].cpu()
         else:
             batch, _ = next(iter(data))
             for i in range(n_images):
@@ -30,18 +30,18 @@ def rec_generate_images(model, device, data, n_images, n_recursions, reconstruct
                     x = fourier_sample(batch)
                 else:
                     x = torch.randn_like(batch).to(device)
-                original.append(x.cpu())
+                original[i] = x[0].cpu()
                 x_hat = x.to(device)
 
-                for _ in range(n_recursions):
+                for j in range(n_recursions):
                     x_hat = model(x_hat)
-                    reconstructed[i].append(x_hat.cpu())
+                    reconstructed[i, j] = x_hat[0].cpu()
     
     return original, reconstructed
     
 
 if __name__=="__main__":
-    """Usage: python generate.py --run_id <run_id> --epoch <epoch>"""    
+    """Usage: python generate.py --run_id <run_id> --epoch <epoch>""" 
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--run_id", type=str, required=True)
@@ -51,7 +51,7 @@ if __name__=="__main__":
 
     # Setup
     use_mnist = True
-    use_fourier_sampling = True
+    use_fourier_sampling = False
     n_images = 10
     n_recursions = 3
 
