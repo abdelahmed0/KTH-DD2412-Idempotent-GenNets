@@ -1,8 +1,14 @@
-from torch.utils.data import DataLoader
+import torch
+from typing import Tuple
+from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
+from torchvision.transforms import Lambda
 from torchvision.datasets.mnist import MNIST
 from torchvision.datasets.celeba import CelebA
 
+
+def add_noise(x):
+    return (x + torch.randn_like(x) * 0.15).clamp(-1, 1)
 
 def load_mnist(
     batch_size=256,
@@ -11,14 +17,15 @@ def load_mnist(
     pin_memory=False,
     single_channel=False,
     path="./data",
-) -> DataLoader:
+    validation_split=0.1,
+) -> Tuple[DataLoader, DataLoader]:
     if single_channel:
-        transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Normalize([0.5], [0.5]),  # Normalize to [-1, 1]
-            ]
-        )
+        noise = Lambda(add_noise)
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5]),
+            noise,
+        ])
     else:
         transform = transforms.Compose(
             [
@@ -29,15 +36,27 @@ def load_mnist(
             ]
         )
 
-    mnist = DataLoader(
-        MNIST(root=path, download=download, transform=transform),
+    dataset = MNIST(root=path, download=download, transform=transform)
+
+    val_size = int(len(dataset) * validation_split)
+    train_size = len(dataset) - val_size
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+    train_loader = DataLoader(
+        train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
-
-    return mnist
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )
+    return train_loader, val_loader
 
 
 def load_celeb_a(

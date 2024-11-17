@@ -1,4 +1,4 @@
-run_id: "MNIST_GAUSSIAN_NO_TIGHT_CLAMP"
+run_id: "2_MNIST"
 
 training:
   n_epochs: 1000
@@ -9,17 +9,20 @@ training:
   use_fourier_sampling: false
   manifold_warmup:
     enabled: false
-    warmup_epochs: 100
+    warmup_epochs: 200
     lambda_tight_start: 0.5 # Starting value of lambda_tight
     schedule_type: "linear" # Type of scheduling ("linear" or "exponential")
 
 losses:
-  loss_function: "MSE" # MSE, L1
+  loss_function: "L1" # MSE, L1
   tight_clamp: false
   tight_clamp_ratio: 1.5
   lambda_rec: 20
   lambda_idem: 20
   lambda_tight: 2.5         # If warmup is enabled, this value is the end value of lambda_tight
+
+early_stopping:
+  patience: 100
 
 optimizer:
   type: "Adam"
@@ -32,9 +35,10 @@ model:
 
 dataset:
   name: "mnist" # MNIST, CELEBA
+  validation_split: 0.1 
   path: "./data"
   download: true
-  num_workers: 5
+  num_workers: 8
   pin_memory: true
   single_channel: true  # Only used for MNIST
 

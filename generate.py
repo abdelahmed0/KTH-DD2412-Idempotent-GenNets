@@ -62,7 +62,7 @@ if __name__=="__main__":
 
     model = load_model(f"checkpoints/{run_id}_epoch_{epoch}.pt")
     if use_mnist:
-        data = load_mnist(batch_size=10, single_channel=True)
+        data, _ = load_mnist(batch_size=10, single_channel=True)
     else:
         data = load_celeb_a(batch_size=1, split='train')
 

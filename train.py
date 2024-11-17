@@ -5,7 +5,7 @@ import torch
 import yaml
 
 from torch.nn import functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm
 
@@ -27,7 +27,7 @@ def load_config(config_path):
     return config
 
 
-def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: DataLoader, config: dict, device: str, writer: SummaryWriter):
+def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: DataLoader, val_data_loader: DataLoader, config: dict, device: str, writer: SummaryWriter):
     """Train the Idempotent Generative Network with optional Manifold Expansion Warmup"""
 
     n_epochs = config['training']['n_epochs']
@@ -41,6 +41,11 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
     image_log_period = config['training'].get('image_log_period', 100)
     run_id = config['run_id']
     use_fourier_sampling = config['training'].get('use_fourier_sampling', False)
+
+    # Early Stopping Parameters
+    patience = config['early_stopping'].get('patience', 5)
+    best_val_loss = float('inf')
+    epochs_without_improvement = 0
 
     # Manifold Warmup Parameters
     warmup_config = config['training'].get('manifold_warmup', {})
@@ -110,7 +115,6 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
             opt.step()
 
             loss_item = loss.item()
-            #tqdm.write(f"Epoch [{epoch+1}/{n_epochs}], Batch [{batch_idx+1}/{len(data_loader)}], Loss: {loss_item:.3f}")
             update_step = epoch * len(data_loader) + batch_idx
             writer.add_scalar('Loss/Total', loss_item, update_step)
             writer.add_scalar('Loss/Reconstruction', loss_rec.item(), update_step)
@@ -118,7 +122,44 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
             writer.add_scalar('Loss/Tightness', loss_tight.item(), update_step)
             writer.add_scalar('Hyperparameters/Lambda_Tight', lambda_tight, update_step)
 
-        config['current_epoch'] = epoch # Used when terminating training
+        config['current_epoch'] = epoch  # Used when terminating training
+
+        # Validation after each epoch
+        val_loss = 0.0
+        val_batches = 0
+        f.eval()
+        with torch.no_grad():
+            for x_val, _ in val_data_loader:
+                x_val = x_val.to(device)
+                fx_val = f(x_val)
+                loss_val = rec_func(fx_val, x_val)
+                val_loss += loss_val.item()
+                val_batches += 1
+        avg_val_loss = val_loss / val_batches
+        writer.add_scalar('Loss/Validation', avg_val_loss, epoch+1)
+        tqdm.write(f"Epoch [{epoch+1}/{n_epochs}], Validation Loss: {avg_val_loss:.4f}")
+        f.train()
+
+        # Early Stopping Check
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            epochs_without_improvement = 0
+            # Save the best model
+            checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_best_model.pt")
+            torch.save({
+                'epoch': epoch + 1,
+                'model_state_dict': getattr(f, '_orig_mod', f).state_dict(),
+                'optimizer_state_dict': opt.state_dict(),
+                'loss': loss_item,
+                'config': config
+            }, checkpoint_path)
+            tqdm.write(f"Validation loss improved to {avg_val_loss:.4f}, saved best model.")
+        else:
+            epochs_without_improvement += 1
+            tqdm.write(f"Validation loss did not improve for {epochs_without_improvement} epochs.")
+            if epochs_without_improvement >= patience:
+                tqdm.write(f"Early stopping triggered after {patience} epochs without improvement.")
+                break  # Break out of the training loop
 
         if (epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs:
             # Save the sampled image
@@ -168,17 +209,31 @@ def main():
     # Load dataset
     dataset_name = config['dataset']['name']
     if dataset_name.lower() == "mnist":
-        data_loader = load_mnist(batch_size=config['training']['batch_size'],
-                                 download=config['dataset']['download'],
-                                 num_workers=config['dataset']['num_workers'],
-                                 pin_memory=config['dataset']['pin_memory'],
-                                 single_channel=config['dataset']['single_channel'])
+        # Modify load_mnist to return both train and validation loaders
+        train_loader, val_loader = load_mnist(
+            batch_size=config['training']['batch_size'],
+            download=config['dataset']['download'],
+            num_workers=config['dataset']['num_workers'],
+            pin_memory=config['dataset']['pin_memory'],
+            single_channel=config['dataset']['single_channel'],
+            validation_split=config['dataset'].get('validation_split', 0.1)
+        )
     elif dataset_name.lower() == "celeba":
-        data_loader = load_celeb_a(batch_size=config['training']['batch_size'],
-                                 download=config['dataset']['download'],
-                                 num_workers=config['dataset']['num_workers'],
-                                 pin_memory=config['dataset']['pin_memory'],
-                                 split='train')
+        # For CelebA, use 'train' and 'valid' splits
+        train_loader = load_celeb_a(
+            batch_size=config['training']['batch_size'],
+            download=config['dataset']['download'],
+            num_workers=config['dataset']['num_workers'],
+            pin_memory=config['dataset']['pin_memory'],
+            split='train'
+        )
+        val_loader = load_celeb_a(
+            batch_size=config['training']['batch_size'],
+            download=config['dataset']['download'],
+            num_workers=config['dataset']['num_workers'],
+            pin_memory=config['dataset']['pin_memory'],
+            split='valid'
+        )
     else:
         raise NotImplementedError(f"Dataset {dataset_name} is not supported yet.")
 
@@ -220,14 +275,15 @@ def main():
             f=model,
             f_copy=model_copy,
             opt=optimizer,
-            data_loader=data_loader,
+            data_loader=train_loader,
+            val_data_loader=val_loader,
             config=config,
             device=device,
             writer=writer
         )
     except KeyboardInterrupt:
         print("Training interrupted.")
-        ans = input("Do you want to save a checkpoint (Y/N)?" )
+        ans = input("Do you want to save a checkpoint (Y/N)?")
         if ans.lower() in ['yes', 'y']:
             checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{config['current_epoch']+1}.pt")
             torch.save({
