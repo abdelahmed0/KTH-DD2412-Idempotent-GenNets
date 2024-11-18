@@ -30,7 +30,7 @@ def rec_generate_images(model, device, data, n_images, n_recursions, reconstruct
                     x = fourier_sample(batch)
                 else:
                     x = torch.randn_like(batch).to(device)
-                original[i] = x[0].cpu()
+                original[i] = x[0].clamp(-1.0, 1.0).cpu()
                 x_hat = x.to(device)
 
                 for j in range(n_recursions):
@@ -54,6 +54,7 @@ if __name__=="__main__":
     use_fourier_sampling = False
     n_images = 10
     n_recursions = 3
+    normalized = True # True if images are in range [-1, 1]
 
     
     grayscale = True if use_mnist else False
@@ -62,15 +63,15 @@ if __name__=="__main__":
 
     model = load_model(f"checkpoints/{run_id}_epoch_{epoch}.pt")
     if use_mnist:
-        data, _ = load_mnist(batch_size=10, single_channel=True)
+        data, _ = load_mnist(batch_size=512 if use_fourier_sampling else 1, single_channel=True)
     else:
-        data = load_celeb_a(batch_size=1, split='train')
+        data = load_celeb_a(batch_size=256 if use_fourier_sampling else 1, split='train')
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
     original, reconstructed = rec_generate_images(model=model, device=device, data=data, n_images=n_images, n_recursions=n_recursions, reconstruct=True, use_fourier_sampling=use_fourier_sampling)
-    plot_images(original, reconstructed, grayscale=grayscale)
+    plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
     original, reconstructed = rec_generate_images(model=model, device=device, data=data, n_images=n_images, n_recursions=n_recursions, reconstruct=False, use_fourier_sampling=use_fourier_sampling)
-    plot_images(original, reconstructed, grayscale=grayscale)
+    plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
 

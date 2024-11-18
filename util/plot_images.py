@@ -1,11 +1,15 @@
 import matplotlib.pyplot as plt
 
 
-def plot_images(original: list, generated: list, grayscale=True):
+def plot_images(original: list, generated: list, grayscale=True, normalized=False):
     """
     original: [n_images]
     generated: [n_images, n_recursions]
     """
+    if normalized:
+        original = (original * 0.5) + 0.5
+        generated = (generated * 0.5) + 0.5
+
     n_images = len(original)
     n_recursions = len(generated[0])
 
@@ -28,13 +32,13 @@ def plot_images(original: list, generated: list, grayscale=True):
                 if grayscale:
                     axs[0, col+1].imshow(original[col, 0], cmap='gray')
                 else:
-                    axs[0, col+1].imshow(original[col, 0].transpose((1,2,0))) # imshow expects [width, height, channels]
+                    axs[0, col+1].imshow(original[col].permute((1,2,0))) # imshow expects [width, height, channels]
                 axs[0, col+1].axis('off')
             else:
                 if grayscale:
                     axs[row, col+1].imshow(generated[col, row-1, 0], cmap='gray')
                 else:
-                    axs[row, col+1].imshow(generated[col, row-1].transpose((1,2,0)))
+                    axs[row, col+1].imshow(generated[col, row-1].permute((1,2,0)))
                 axs[row, col+1].axis('off')
 
     plt.subplots_adjust(wspace=0, hspace=0)
