@@ -14,7 +14,7 @@ from torch import nn
 class DCGAN(nn.Module):
     def __init__(self, architecture='DCGAN', input_size=64, use_bias=False):
         super(DCGAN, self).__init__()
-        if architecture == 'DCGAN_MNIST':
+        if architecture == 'DCGAN_MNIST' or architecture == 'DCGAN_MNIST_2':
             num_channels = 1
         elif architecture == 'DCGAN':
             num_channels = 3
@@ -35,6 +35,9 @@ class DCGAN(nn.Module):
                 m.weight.data.normal_(0.0, 0.02)
                 if m.bias is not None:
                     m.bias.data.zero_()
+            #elif isinstance(m, nn.BatchNorm2d):
+            #    m.weight.data.normal_(0.0, 0.02)
+            #    m.bias.data.zero_()
                 
 
 class Encoder(nn.Module):
@@ -76,18 +79,38 @@ class Encoder(nn.Module):
                 nn.LeakyReLU(0.2, inplace=True),
 
                 nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [64,32,32] -> [128,16,16]
-                nn.LeakyReLU(0.2, inplace=True),
-
                 nn.BatchNorm2d(input_size * 2),
+                nn.LeakyReLU(0.2, inplace=True),
+
                 nn.Conv2d(input_size * 2, input_size * 4, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [128,16,16] -> [256,8,8]
-                nn.LeakyReLU(0.2, inplace=True),
-
                 nn.BatchNorm2d(input_size * 4),
-                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [256,8,8] -> [512,4,4]
                 nn.LeakyReLU(0.2, inplace=True),
 
+                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [256,8,8] -> [512,4,4]
                 nn.BatchNorm2d(input_size * 8),
+                nn.LeakyReLU(0.2, inplace=True),
+
                 nn.Conv2d(input_size * 8, input_size * 8, kernel_size=4, stride=1, padding=0, bias=use_bias)   # [512,4,4] -> [512,1,1]
+            ]
+        elif architecture == 'DCGAN_MNIST_2':
+            # Encoder for MNIST (1x28x28)
+            layers += [
+                nn.Conv2d(num_channels, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),  
+                nn.LeakyReLU(0.2, inplace=False),
+
+                nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  
+                nn.BatchNorm2d(input_size * 2),
+                nn.LeakyReLU(0.2, inplace=False),
+
+                nn.Conv2d(input_size * 2, input_size * 4, kernel_size=3, stride=1, padding=0, bias=use_bias),  
+                nn.BatchNorm2d(input_size * 4),
+                nn.LeakyReLU(0.2, inplace=False),
+
+                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=3, stride=1, padding=0, bias=use_bias),   
+                nn.BatchNorm2d(input_size * 8),
+                nn.LeakyReLU(0.2, inplace=False),
+
+                nn.Conv2d(input_size * 8, input_size * 8, kernel_size=3, stride=1, padding=0, bias=use_bias),
             ]
 
         
@@ -136,22 +159,44 @@ class Decoder(nn.Module):
             # Decoder for DCGAN (3x64x64)
             layers += [
                 nn.ConvTranspose2d(input_size * 8, input_size * 8, kernel_size=4, stride=1, padding=0, bias=use_bias),  # [512,1,1] -> [512,4,4]
-                nn.ReLU(inplace=True),
                 nn.BatchNorm2d(input_size * 8),
+                nn.ReLU(inplace=True),
 
                 nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [512,4,4] -> [256,8,8]
-                nn.ReLU(inplace=True),
                 nn.BatchNorm2d(input_size * 4),
+                nn.ReLU(inplace=True),
 
                 nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [256,8,8] -> [128,16,16]
-                nn.ReLU(inplace=True),
                 nn.BatchNorm2d(input_size * 2),
+                nn.ReLU(inplace=True),
 
                 nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),      # [128,16,16] -> [64,32,32]
-                nn.ReLU(inplace=True),
                 nn.BatchNorm2d(input_size),
+                nn.ReLU(inplace=True),
 
                 nn.ConvTranspose2d(input_size, num_channels, kernel_size=4, stride=2, padding=1, bias=use_bias),      # [64,32,32] -> [3,64,64]
+                nn.Tanh()
+            ]
+        elif architecture == 'DCGAN_MNIST_2':
+            # Decoder for MNIST (1x28x28)
+            layers += [
+                nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=3, stride=1, padding=0, bias=use_bias), 
+                nn.BatchNorm2d(input_size * 4),
+                nn.ReLU(inplace=True),
+
+                nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=3, stride=1, padding=0, bias=use_bias),  
+                nn.BatchNorm2d(input_size * 2),
+                nn.ReLU(inplace=True),
+
+                nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=3, stride=1, padding=0, bias=use_bias),      
+                nn.BatchNorm2d(input_size),
+                nn.ReLU(inplace=True),
+
+                nn.ConvTranspose2d(input_size, input_size // 2, kernel_size=4, stride=2, padding=1, bias=use_bias),      
+                nn.BatchNorm2d(input_size // 2),
+                nn.ReLU(inplace=True),
+
+                nn.ConvTranspose2d(input_size // 2, num_channels, kernel_size=4, stride=2, padding=1, bias=use_bias),     
                 nn.Tanh()
             ]
         
@@ -164,11 +209,19 @@ if __name__ == "__main__":
     model = DCGAN()
     print(model)
 
-    x = torch.randn(1, 3, 64, 64)
+    x = torch.randn(5, 3, 64, 64)
     y = model(x)
-    print(y.shape)
+    print("DCGAN", y.shape)
+    del model
 
     model_mnist = DCGAN(architecture='DCGAN_MNIST')
-    x = torch.randn(1, 1, 28, 28)
+    x = torch.randn(5, 1, 28, 28)
     y = model_mnist(x)
-    print(y.shape)
+    print("DCGAN_MNIST", y.shape)
+    del model_mnist
+
+    model_mnist_2 = DCGAN(architecture='DCGAN_MNIST_2')
+    x = torch.randn(5, 1, 28, 28)
+    y = model_mnist_2(x)
+    print("DCGAN_MNIST_2", y.shape)
+    del model_mnist_2
