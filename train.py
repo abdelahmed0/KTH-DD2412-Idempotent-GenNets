@@ -27,7 +27,7 @@ def load_config(config_path):
     return config
 
 
-def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: DataLoader, val_data_loader: DataLoader, config: dict, device: str, writer: SummaryWriter):
+def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.GradScaler, data_loader: DataLoader, val_data_loader: DataLoader, config: dict, device: torch.device, writer: SummaryWriter):
     """Train the Idempotent Generative Network with optional Manifold Expansion Warmup"""
 
     n_epochs = config['training']['n_epochs']
@@ -39,8 +39,10 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
     tight_clamp_ratio = config['losses']['tight_clamp_ratio']
     save_period = config['training']['save_period']
     image_log_period = config['training'].get('image_log_period', 100)
+    validation_period = config['training'].get('validation_period', 1)
     run_id = config['run_id']
     use_fourier_sampling = config['training'].get('use_fourier_sampling', False)
+    use_amp = config['training']['use_amp']
 
     # Early Stopping Parameters
     patience = config['early_stopping'].get('patience', 5)
@@ -84,35 +86,38 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
             lambda_tight = lambda_tight_end
 
         for batch_idx, (x, _) in enumerate(tqdm(data_loader, total=len(data_loader), position=0, desc="Train Step")):
-            x = x.to(device)
+            with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_amp):
+                x = x.to(device)
 
-            if use_fourier_sampling:
-                z = fourier_sample(x)
-            else:
-                z = torch.randn_like(x, device=device)
+                if use_fourier_sampling:
+                    z = fourier_sample(x)
+                else:
+                    z = torch.randn_like(x, device=device)
 
-            # Apply f to get all needed
-            f_copy.load_state_dict(f.state_dict())
-            fx = f(x)
-            fz = f(z)
-            f_z = fz.detach()
-            ff_z = f(f_z)
-            f_fz = f_copy(fz)
+                # Apply f to get all needed
+                f_copy.load_state_dict(f.state_dict())
+                fx = f(x)
+                fz = f(z)
+                f_z = fz.detach()
+                ff_z = f(f_z)
+                f_fz = f_copy(fz)
 
-            # Calculate losses
-            loss_rec = rec_func(fx, x)
-            loss_idem = idem_func(f_fz, fz)
-            loss_tight = -tight_func(ff_z, f_z)
+                # Calculate losses
+                loss_rec = rec_func(fx, x)
+                loss_idem = idem_func(f_fz, fz)
+                loss_tight = -tight_func(ff_z, f_z)
 
-            # Smoothen tightness loss
-            if tight_clamp:
-                loss_tight = torch.tanh(loss_tight / (tight_clamp_ratio * loss_rec)) * tight_clamp_ratio * loss_rec
+                # Smoothen tightness loss
+                if tight_clamp:
+                    loss_tight = torch.tanh(loss_tight / (tight_clamp_ratio * loss_rec)) * tight_clamp_ratio * loss_rec
 
-            # Optimize for losses
-            loss = lambda_rec * loss_rec + lambda_idem * loss_idem + lambda_tight * loss_tight
+                # Optimize for losses
+                loss = lambda_rec * loss_rec + lambda_idem * loss_idem + lambda_tight * loss_tight
+            
+            scaler.scale(loss).backward()
+            scaler.step(opt)
+            scaler.update()
             opt.zero_grad()
-            loss.backward()
-            opt.step()
 
             loss_item = loss.item()
             update_step = epoch * len(data_loader) + batch_idx
@@ -141,25 +146,27 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
         f.train()
 
         # Early Stopping Check
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            epochs_without_improvement = 0
-            # Save the best model
-            checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_best_model.pt")
-            torch.save({
-                'epoch': epoch + 1,
-                'model_state_dict': getattr(f, '_orig_mod', f).state_dict(),
-                'optimizer_state_dict': opt.state_dict(),
-                'loss': loss_item,
-                'config': config
-            }, checkpoint_path)
-            tqdm.write(f"Validation loss improved to {avg_val_loss:.4f}, saved best model.")
-        else:
-            epochs_without_improvement += 1
-            tqdm.write(f"Validation loss did not improve for {epochs_without_improvement} epochs.")
-            if epochs_without_improvement >= patience:
-                tqdm.write(f"Early stopping triggered after {patience} epochs without improvement.")
-                break  # Break out of the training loop
+        if (epoch + 1) % validation_period == 0 or (epoch + 1) == n_epochs:
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                epochs_without_improvement = 0
+                # Save the best model
+                checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_best_model.pt")
+                torch.save({
+                    'epoch': epoch + 1,
+                    'model_state_dict': getattr(f, '_orig_mod', f).state_dict(),
+                    'optimizer_state_dict': opt.state_dict(),
+                    'scaler_state_dict': scaler.state_dict(),
+                    'loss': loss_item,
+                    'config': config
+                }, checkpoint_path)
+                tqdm.write(f"Validation loss improved to {avg_val_loss:.4f}, saved best model.")
+            else:
+                epochs_without_improvement += 1
+                tqdm.write(f"Validation loss did not improve for {epochs_without_improvement} epochs.")
+                if epochs_without_improvement >= patience:
+                    tqdm.write(f"Early stopping triggered after {patience} epochs without improvement.")
+                    break  # Break out of the training loop
 
         if (epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs:
             # Save the sampled image
@@ -180,6 +187,7 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, data_loader: Data
                 'epoch': epoch + 1,
                 'model_state_dict': getattr(f, '_orig_mod', f).state_dict(),
                 'optimizer_state_dict': opt.state_dict(),
+                'scaler_state_dict': scaler.state_dict(),
                 'loss': loss_item,
                 'config': config
             }, checkpoint_path)
@@ -267,14 +275,18 @@ def main():
     else:
         raise NotImplementedError(f"Optimizer type {optimizer_config['type']} is not supported.")
     
+    scaler = torch.GradScaler(device.type, enabled=config['training']['use_amp'])
+
     if args.resume is not None:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scaler.load_state_dict(checkpoint['scaler_state_dict'])
 
     try:
         train(
             f=model,
             f_copy=model_copy,
             opt=optimizer,
+            scaler=scaler,
             data_loader=train_loader,
             val_data_loader=val_loader,
             config=config,
@@ -290,6 +302,7 @@ def main():
                 'epoch': config['current_epoch'] + 1,
                 'model_state_dict': getattr(model, '_orig_mod', model).state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scaler_state_dict': scaler.state_dict(),
                 'config': config
             }, checkpoint_path)
             print("Saved model to: ", checkpoint_path)

@@ -69,7 +69,8 @@ def load_celeb_a(
 ) -> DataLoader:
     transform = transforms.Compose(
         [
-            transforms.Resize((64, 64)),
+            transforms.Resize(64),
+            transforms.CenterCrop(64),
             transforms.ToTensor(),
             transforms.Normalize([0.5]* 3, [0.5] * 3),  # Normalize to [-1, 1]
         ]
@@ -86,7 +87,7 @@ def load_celeb_a(
     return celebA
 
 if __name__ == '__main__':
-    mnist_3 = load_mnist(batch_size=32, single_channel=False)
+    mnist_3 = load_mnist(batch_size=32, single_channel=False)[0]
     mnist_3_image = next(iter(mnist_3))[0]
     assert mnist_3_image.shape == (32, 3, 64, 64)
     assert mnist_3_image.min() >= -1
@@ -94,7 +95,7 @@ if __name__ == '__main__':
     assert mnist_3_image.min() < 0
     assert mnist_3_image.max() > 0
 
-    mnist = load_mnist(batch_size=32, single_channel=True)
+    mnist = load_mnist(batch_size=32, single_channel=True)[0]
     mnist_image = next(iter(mnist))[0]
     assert mnist_image.shape == (32, 1, 28, 28)
     assert mnist_image.min() >= -1
