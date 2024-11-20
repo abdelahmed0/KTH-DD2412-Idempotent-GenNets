@@ -3,6 +3,7 @@ import copy
 import os
 import torch
 import yaml
+import time
 
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
@@ -74,6 +75,7 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
     f_copy.eval()
 
     for epoch in tqdm(range(config.get('start_epoch', 0), n_epochs), position=1, desc="Epoch", total=n_epochs, initial=config.get('start_epoch', 0)):
+        epoch_timer = time.time()
         # Calculate current lambda_tight based on warmup schedule
         if warmup_enabled and epoch < warmup_epochs:
             if schedule_type == "linear":
@@ -128,6 +130,7 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
             writer.add_scalar('Hyperparameters/Lambda_Tight', lambda_tight, update_step)
 
         config['current_epoch'] = epoch  # Used when terminating training
+        writer.add_scalar('Logs/Epoch_Timer', time.time() - epoch_timer, epoch+1)
 
         if (epoch + 1) % validation_period == 0 or (epoch + 1) == n_epochs:
             # Validation after epoch
@@ -280,6 +283,8 @@ def main():
     if args.resume is not None:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scaler.load_state_dict(checkpoint['scaler_state_dict'])
+
+    torch.backends.cudnn.benchmark = True 
 
     try:
         train(
