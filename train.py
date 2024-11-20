@@ -129,24 +129,24 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
 
         config['current_epoch'] = epoch  # Used when terminating training
 
-        # Validation after each epoch
-        val_loss = 0.0
-        val_batches = 0
-        f.eval()
-        with torch.no_grad():
-            for x_val, _ in val_data_loader:
-                x_val = x_val.to(device)
-                fx_val = f(x_val)
-                loss_val = rec_func(fx_val, x_val)
-                val_loss += loss_val.item()
-                val_batches += 1
-        avg_val_loss = val_loss / val_batches
-        writer.add_scalar('Loss/Validation', avg_val_loss, epoch+1)
-        tqdm.write(f"Epoch [{epoch+1}/{n_epochs}], Validation Loss: {avg_val_loss:.4f}")
-        f.train()
-
-        # Early Stopping Check
         if (epoch + 1) % validation_period == 0 or (epoch + 1) == n_epochs:
+            # Validation after epoch
+            val_loss = 0.0
+            val_batches = 0
+            f.eval()
+            with torch.no_grad():
+                for x_val, _ in val_data_loader:
+                    x_val = x_val.to(device)
+                    fx_val = f(x_val)
+                    loss_val = rec_func(fx_val, x_val)
+                    val_loss += loss_val.item()
+                    val_batches += 1
+            avg_val_loss = val_loss / val_batches
+            writer.add_scalar('Loss/Validation', avg_val_loss, epoch+1)
+            tqdm.write(f"Epoch [{epoch+1}/{n_epochs}], Validation Loss: {avg_val_loss:.4f}")
+            f.train()
+
+            # Early Stopping Check
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
                 epochs_without_improvement = 0
