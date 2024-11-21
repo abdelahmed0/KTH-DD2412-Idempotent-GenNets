@@ -18,14 +18,17 @@ def load_mnist(
     single_channel=False,
     path="./data",
     validation_split=0.1,
+    add_noise=False,
 ) -> Tuple[DataLoader, DataLoader]:
     if single_channel:
-        noise = Lambda(add_noise)
-        transform = transforms.Compose([
+        trans = [
             transforms.ToTensor(),
             transforms.Normalize([0.5], [0.5]),
-            noise,
-        ])
+        ]
+        if add_noise:
+            trans.append(Lambda(add_noise))
+
+        transform = transforms.Compose(trans)
     else:
         transform = transforms.Compose(
             [

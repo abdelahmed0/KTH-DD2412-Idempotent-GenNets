@@ -35,9 +35,9 @@ class DCGAN(nn.Module):
                 m.weight.data.normal_(0.0, 0.02)
                 if m.bias is not None:
                     m.bias.data.zero_()
-            #elif isinstance(m, nn.BatchNorm2d):
-            #    m.weight.data.normal_(0.0, 0.02)
-            #    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.normal_(1.0, 0.02)
+                m.bias.data.zero_()
                 
 
 class Encoder(nn.Module):
@@ -51,26 +51,26 @@ class Encoder(nn.Module):
 
         if architecture == 'DCGAN_MNIST':
             layers += [
-                nn.Conv2d(num_channels, input_size, 4, 2, 1, bias=False),  # [1,28,28] -> [64,14,14]
+                nn.Conv2d(num_channels, input_size, 4, 2, 1, bias=use_bias),  # [1,28,28] -> [64,14,14]
                 nn.Dropout2d(0.1),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
                 nn.GroupNorm(num_groups=8, num_channels=input_size),
-                nn.Conv2d(input_size, input_size * 2, 4, 2, 1, bias=False),  # [64,14,14] -> [128,7,7]
+                nn.Conv2d(input_size, input_size * 2, 4, 2, 1, bias=use_bias),  # [64,14,14] -> [128,7,7]
                 nn.Dropout2d(0.1),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
                 nn.GroupNorm(num_groups=8, num_channels=input_size * 2),
-                nn.Conv2d(input_size * 2, input_size * 4, 3, 1, 0, bias=False),  # [128,7,7] -> [256,5,5]
+                nn.Conv2d(input_size * 2, input_size * 4, 3, 1, 0, bias=use_bias),  # [128,7,7] -> [256,5,5]
                 nn.Dropout2d(0.1),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
                 nn.GroupNorm(num_groups=8, num_channels=input_size * 4),
-                nn.Conv2d(input_size * 4, input_size * 8, 3, 1, 0, bias=False),  # [256,5,5] -> [512,3,3]
+                nn.Conv2d(input_size * 4, input_size * 8, 3, 1, 0, bias=use_bias),  # [256,5,5] -> [512,3,3]
                 nn.Dropout2d(0.1),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-                nn.Conv2d(input_size * 8, input_size * 8, 3, 1, 0, bias=False), # [512,3,3] -> [512,1,1]
+                nn.Conv2d(input_size * 8, input_size * 8, 3, 1, 0, bias=use_bias), # [512,3,3] -> [512,1,1]
             ]
         elif architecture == 'DCGAN':
             # Encoder for DCGAN (3x64x64)
@@ -95,22 +95,18 @@ class Encoder(nn.Module):
         elif architecture == 'DCGAN_MNIST_2':
             # Encoder for MNIST (1x28x28)
             layers += [
-                nn.Conv2d(num_channels, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),  
-                nn.LeakyReLU(0.2, inplace=False),
+                nn.Conv2d(num_channels, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias), # [64, 14, 14]  
+                nn.LeakyReLU(0.2, inplace=True),
 
-                nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  
+                nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [128, 7, 7]  
                 nn.BatchNorm2d(input_size * 2),
-                nn.LeakyReLU(0.2, inplace=False),
+                nn.LeakyReLU(0.2, inplace=True),
 
-                nn.Conv2d(input_size * 2, input_size * 4, kernel_size=3, stride=1, padding=0, bias=use_bias),  
+                nn.Conv2d(input_size * 2, input_size * 4, kernel_size=3, stride=2, padding=1, bias=use_bias),  # [128, 4, 4]  
                 nn.BatchNorm2d(input_size * 4),
-                nn.LeakyReLU(0.2, inplace=False),
+                nn.LeakyReLU(0.2, inplace=True),
 
-                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=3, stride=1, padding=0, bias=use_bias),   
-                nn.BatchNorm2d(input_size * 8),
-                nn.LeakyReLU(0.2, inplace=False),
-
-                nn.Conv2d(input_size * 8, input_size * 8, kernel_size=3, stride=1, padding=0, bias=use_bias),
+                nn.Conv2d(input_size * 4, input_size * 4, kernel_size=4, stride=1, padding=0, bias=use_bias), # [128, 1, 1]  
             ]
 
         
@@ -133,26 +129,26 @@ class Decoder(nn.Module):
             in_channels = input_size * 8
             layers += [
                 nn.GroupNorm(num_groups=8, num_channels=in_channels),
-                nn.ConvTranspose2d(in_channels, in_channels // 2, 3, 1, 0, bias=False),  # [512,1,1] -> [256,3,3]
+                nn.ConvTranspose2d(in_channels, in_channels // 2, 3, 1, 0, bias=use_bias),  # [512,1,1] -> [256,3,3]
                 nn.Dropout2d(0.1),
                 nn.ReLU(True),
 
                 nn.GroupNorm(num_groups=8, num_channels=in_channels // 2),
-                nn.ConvTranspose2d(in_channels // 2, in_channels // 4, 3, 1, 0, bias=False),  # [256,3,3] -> [128,5,5]
+                nn.ConvTranspose2d(in_channels // 2, in_channels // 4, 3, 1, 0, bias=use_bias),  # [256,3,3] -> [128,5,5]
                 nn.Dropout2d(0.1),
                 nn.ReLU(True),
 
                 nn.GroupNorm(num_groups=8, num_channels=in_channels // 4),
-                nn.ConvTranspose2d(in_channels // 4, in_channels // 8, 3, 1, 0, bias=False),  # [128,5,5] -> [64,7,7]
+                nn.ConvTranspose2d(in_channels // 4, in_channels // 8, 3, 1, 0, bias=use_bias),  # [128,5,5] -> [64,7,7]
                 nn.Dropout2d(0.1),
                 nn.ReLU(True),
 
                 nn.GroupNorm(num_groups=8, num_channels=in_channels // 8),
-                nn.ConvTranspose2d(in_channels // 8, in_channels // 16, 4, 2, 1, bias=False),  # [64,7,7] -> [32,14,14]
+                nn.ConvTranspose2d(in_channels // 8, in_channels // 16, 4, 2, 1, bias=use_bias),  # [64,7,7] -> [32,14,14]
                 nn.Dropout2d(0.1),
                 nn.ReLU(True),
 
-                nn.ConvTranspose2d(in_channels // 16, num_channels, 4, 2, 1, bias=False),  # [32,14,14] -> [1,28,28]
+                nn.ConvTranspose2d(in_channels // 16, num_channels, 4, 2, 1, bias=use_bias),  # [32,14,14] -> [1,28,28]
                 nn.Tanh(),
             ]
         elif architecture == 'DCGAN':
@@ -180,23 +176,19 @@ class Decoder(nn.Module):
         elif architecture == 'DCGAN_MNIST_2':
             # Decoder for MNIST (1x28x28)
             layers += [
-                nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=3, stride=1, padding=0, bias=use_bias), 
+                nn.ConvTranspose2d(input_size * 4, input_size * 4, kernel_size=4, stride=1, padding=0, bias=use_bias), 
                 nn.BatchNorm2d(input_size * 4),
                 nn.ReLU(inplace=True),
 
-                nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=3, stride=1, padding=0, bias=use_bias),  
+                nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),  
                 nn.BatchNorm2d(input_size * 2),
                 nn.ReLU(inplace=True),
 
-                nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=3, stride=1, padding=0, bias=use_bias),      
+                nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),      
                 nn.BatchNorm2d(input_size),
                 nn.ReLU(inplace=True),
 
-                nn.ConvTranspose2d(input_size, input_size // 2, kernel_size=4, stride=2, padding=1, bias=use_bias),      
-                nn.BatchNorm2d(input_size // 2),
-                nn.ReLU(inplace=True),
-
-                nn.ConvTranspose2d(input_size // 2, num_channels, kernel_size=4, stride=2, padding=1, bias=use_bias),     
+                nn.ConvTranspose2d(input_size, num_channels, kernel_size=4, stride=2, padding=1, bias=use_bias),     
                 nn.Tanh()
             ]
         

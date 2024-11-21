@@ -72,7 +72,7 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
     writer.add_text("config", f"``` {config} ```")
 
     f.train()
-    f_copy.eval()
+    f_copy.train()
 
     for epoch in tqdm(range(config.get('start_epoch', 0), n_epochs), position=1, desc="Epoch", total=n_epochs, initial=config.get('start_epoch', 0)):
         epoch_timer = time.time()
@@ -227,7 +227,8 @@ def main():
             num_workers=config['dataset']['num_workers'],
             pin_memory=config['dataset']['pin_memory'],
             single_channel=config['dataset']['single_channel'],
-            validation_split=config['dataset'].get('validation_split', 0.1)
+            validation_split=config['dataset'].get('validation_split', 0.1),
+            add_noise=config['dataset'].get('add_noise', False)
         )
     elif dataset_name.lower() == "celeba":
         # For CelebA, use 'train' and 'valid' splits
