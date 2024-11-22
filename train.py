@@ -205,115 +205,123 @@ def main():
     parser.add_argument("--resume", type=str, default=None, help="Resume training from the specified checkpoint")
     args = parser.parse_args()
 
-    # Load configuration
-    if args.resume is None:
-        config = load_config(args.config)
-    else:
-        checkpoint = load_checkpoint(args.resume)
-        config = checkpoint['config']
-        config['start_epoch'] = checkpoint['epoch']
-    run_id = config['run_id']
+    for config_idx in range(3):
+        if config_idx == 0:
+            args.config = "config_mnist.yaml"
+        elif config_idx == 1:
+            args.config = "config_mnist_ignite.yaml"
+        elif config_idx == 2:
+            args.config = "config_mnist_fourier.yaml"
 
-    # Setup directories
-    setup_dirs(config)
+        # Load configuration
+        if args.resume is None:
+            config = load_config(args.config)
+        else:
+            checkpoint = load_checkpoint(args.resume)
+            config = checkpoint['config']
+            config['start_epoch'] = checkpoint['epoch']
+        run_id = config['run_id']
 
-    # Load dataset
-    dataset_name = config['dataset']['name']
-    if dataset_name.lower() == "mnist":
-        # Modify load_mnist to return both train and validation loaders
-        train_loader, val_loader = load_mnist(
-            batch_size=config['training']['batch_size'],
-            download=config['dataset']['download'],
-            num_workers=config['dataset']['num_workers'],
-            pin_memory=config['dataset']['pin_memory'],
-            single_channel=config['dataset']['single_channel'],
-            validation_split=config['dataset'].get('validation_split', 0.1),
-            add_noise=config['dataset'].get('add_noise', False)
-        )
-    elif dataset_name.lower() == "celeba":
-        # For CelebA, use 'train' and 'valid' splits
-        train_loader = load_celeb_a(
-            batch_size=config['training']['batch_size'],
-            download=config['dataset']['download'],
-            num_workers=config['dataset']['num_workers'],
-            pin_memory=config['dataset']['pin_memory'],
-            split='train'
-        )
-        val_loader = load_celeb_a(
-            batch_size=config['training']['batch_size'],
-            download=config['dataset']['download'],
-            num_workers=config['dataset']['num_workers'],
-            pin_memory=config['dataset']['pin_memory'],
-            split='valid'
-        )
-    else:
-        raise NotImplementedError(f"Dataset {dataset_name} is not supported yet.")
+        # Setup directories
+        setup_dirs(config)
 
-    # Initialize TensorBoard writer
-    log_dir = os.path.join(config['logging']['log_dir'], run_id)
-    writer = SummaryWriter(log_dir=log_dir)
+        # Load dataset
+        dataset_name = config['dataset']['name']
+        if dataset_name.lower() == "mnist":
+            # Modify load_mnist to return both train and validation loaders
+            train_loader, val_loader = load_mnist(
+                batch_size=config['training']['batch_size'],
+                download=config['dataset']['download'],
+                num_workers=config['dataset']['num_workers'],
+                pin_memory=config['dataset']['pin_memory'],
+                single_channel=config['dataset']['single_channel'],
+                validation_split=config['dataset'].get('validation_split', 0.1),
+                add_noise=config['dataset'].get('add_noise', False)
+            )
+        elif dataset_name.lower() == "celeba":
+            # For CelebA, use 'train' and 'valid' splits
+            train_loader = load_celeb_a(
+                batch_size=config['training']['batch_size'],
+                download=config['dataset']['download'],
+                num_workers=config['dataset']['num_workers'],
+                pin_memory=config['dataset']['pin_memory'],
+                split='train'
+            )
+            val_loader = load_celeb_a(
+                batch_size=config['training']['batch_size'],
+                download=config['dataset']['download'],
+                num_workers=config['dataset']['num_workers'],
+                pin_memory=config['dataset']['pin_memory'],
+                split='valid'
+            )
+        else:
+            raise NotImplementedError(f"Dataset {dataset_name} is not supported yet.")
 
-    # Setup device
-    device = torch.device("cuda" if config['device']['use_cuda'] and torch.cuda.is_available() else "cpu")
+        # Initialize TensorBoard writer
+        log_dir = os.path.join(config['logging']['log_dir'], run_id)
+        writer = SummaryWriter(log_dir=log_dir)
 
-    # Initialize models
-    model = DCGAN(architecture=config['model']['architecture'], use_bias=config['model']['use_bias'])
-    if args.resume is not None:
-        model.load_state_dict(checkpoint['model_state_dict'])
-    model_copy = copy.deepcopy(model).requires_grad_(False)
+        # Setup device
+        device = torch.device("cuda" if config['device']['use_cuda'] and torch.cuda.is_available() else "cpu")
 
-    model.to(device)
-    model_copy.to(device)
+        # Initialize models
+        model = DCGAN(architecture=config['model']['architecture'], use_bias=config['model']['use_bias'])
+        if args.resume is not None:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        model_copy = copy.deepcopy(model).requires_grad_(False)
 
-    # Compile models if specified
-    if config['training'].get('compile_model', False):
-        model = torch.compile(model, mode="reduce-overhead")
-        model_copy = torch.compile(model_copy, mode="reduce-overhead")
+        model.to(device)
+        model_copy.to(device)
 
-    # Initialize optimizer
-    optimizer_config = config['optimizer']
-    if optimizer_config['type'].lower() == "adam":
-        optimizer = torch.optim.Adam(model.parameters(),
-                                     lr=optimizer_config['lr'],
-                                     betas=optimizer_config['betas'])
-    else:
-        raise NotImplementedError(f"Optimizer type {optimizer_config['type']} is not supported.")
-    
-    scaler = torch.GradScaler(device.type, enabled=config['training']['use_amp'])
+        # Compile models if specified
+        if config['training'].get('compile_model', False):
+            model = torch.compile(model, mode="reduce-overhead")
+            model_copy = torch.compile(model_copy, mode="reduce-overhead")
 
-    if args.resume is not None:
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        scaler.load_state_dict(checkpoint['scaler_state_dict'])
+        # Initialize optimizer
+        optimizer_config = config['optimizer']
+        if optimizer_config['type'].lower() == "adam":
+            optimizer = torch.optim.Adam(model.parameters(),
+                                        lr=optimizer_config['lr'],
+                                        betas=optimizer_config['betas'])
+        else:
+            raise NotImplementedError(f"Optimizer type {optimizer_config['type']} is not supported.")
+        
+        scaler = torch.GradScaler(device.type, enabled=config['training']['use_amp'])
 
-    torch.backends.cudnn.benchmark = True 
+        if args.resume is not None:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            scaler.load_state_dict(checkpoint['scaler_state_dict'])
 
-    try:
-        train(
-            f=model,
-            f_copy=model_copy,
-            opt=optimizer,
-            scaler=scaler,
-            data_loader=train_loader,
-            val_data_loader=val_loader,
-            config=config,
-            device=device,
-            writer=writer
-        )
-    except KeyboardInterrupt:
-        print("Training interrupted.")
-        ans = input("Do you want to save a checkpoint (Y/N)?")
-        if ans.lower() in ['yes', 'y']:
-            checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{config['current_epoch']+1}.pt")
-            torch.save({
-                'epoch': config['current_epoch'] + 1,
-                'model_state_dict': getattr(model, '_orig_mod', model).state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scaler_state_dict': scaler.state_dict(),
-                'config': config
-            }, checkpoint_path)
-            print("Saved model to: ", checkpoint_path)
-    finally:
-        writer.close()
+        torch.backends.cudnn.benchmark = True 
+
+        try:
+            train(
+                f=model,
+                f_copy=model_copy,
+                opt=optimizer,
+                scaler=scaler,
+                data_loader=train_loader,
+                val_data_loader=val_loader,
+                config=config,
+                device=device,
+                writer=writer
+            )
+        except KeyboardInterrupt:
+            print("Training interrupted.")
+            ans = input("Do you want to save a checkpoint (Y/N)?")
+            if ans.lower() in ['yes', 'y']:
+                checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{config['current_epoch']+1}.pt")
+                torch.save({
+                    'epoch': config['current_epoch'] + 1,
+                    'model_state_dict': getattr(model, '_orig_mod', model).state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scaler_state_dict': scaler.state_dict(),
+                    'config': config
+                }, checkpoint_path)
+                print("Saved model to: ", checkpoint_path)
+        finally:
+            writer.close()
 
 
 if __name__ == "__main__":

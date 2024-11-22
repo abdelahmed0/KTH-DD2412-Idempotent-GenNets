@@ -1,4 +1,4 @@
-run_id: "MNIST"
+run_id: "MNIST_FOURIER"
 
 training:
   n_epochs: 1000
@@ -6,7 +6,7 @@ training:
   save_period: 50
   image_log_period: 10
   compile_model: true
-  use_fourier_sampling: false
+  use_fourier_sampling: true
   use_amp: false
   manifold_warmup:
     enabled: false
