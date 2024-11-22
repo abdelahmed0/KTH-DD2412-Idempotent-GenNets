@@ -35,9 +35,6 @@ class DCGAN(nn.Module):
                 m.weight.data.normal_(0.0, 0.02)
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.normal_(1.0, 0.02)
-                m.bias.data.zero_()
                 
 
 class Encoder(nn.Module):
