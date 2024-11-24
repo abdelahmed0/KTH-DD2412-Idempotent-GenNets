@@ -12,7 +12,7 @@ training:
   manifold_warmup:
     enabled: true
     warmup_epochs: 200
-    lambda_tight_start: 0.5 # Starting value of lambda_tight
+    lambda_tight_start: 0.0 # Starting value of lambda_tight
     schedule_type: "linear" # Type of scheduling ("linear" or "exponential")
 
 losses:

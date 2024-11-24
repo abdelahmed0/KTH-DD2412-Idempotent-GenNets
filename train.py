@@ -428,7 +428,7 @@ def main():
         else:
             raise NotImplementedError(f"Optimizer type {optimizer_config['type']} is not supported.")
 
-        scaler = GradScaler(device.type, enabled=config['training']['use_amp'])
+        scaler = GradScaler(enabled=config['training']['use_amp'])
 
         if args.resume is not None and use_validation:
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
