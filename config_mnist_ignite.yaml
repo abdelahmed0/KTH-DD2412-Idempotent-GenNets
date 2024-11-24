@@ -8,6 +8,7 @@ training:
   compile_model: true
   use_fourier_sampling: false
   use_amp: true
+  use_validation: false
   manifold_warmup:
     enabled: true
     warmup_epochs: 200

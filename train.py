@@ -17,12 +17,14 @@ from util.model_util import load_checkpoint
 from generate import rec_generate_images
 
 
-def setup_dirs(config):
+def setup_dirs(config: dict):
+    """Create necessary directories based on the configuration."""
     os.makedirs(config['checkpoint']['save_dir'], exist_ok=True)
     os.makedirs(config['logging']['log_dir'], exist_ok=True)
 
 
-def load_config(config_path):
+def load_config(config_path: str) -> dict:
+    """Load YAML configuration from a file."""
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
     return config
@@ -31,6 +33,23 @@ def load_config(config_path):
 def compute_losses(f: DCGAN, f_copy: DCGAN, x: torch.Tensor, z: torch.Tensor,
                   rec_func, idem_func, tight_func,
                   tight_clamp: bool, tight_clamp_ratio: float):
+    """
+    Compute reconstruction, idempotency, and tightness losses.
+
+    Args:
+        f (DCGAN): Primary model.
+        f_copy (DCGAN): Copy of the primary model.
+        x (torch.Tensor): Input tensor.
+        z (torch.Tensor): Latent tensor.
+        rec_func: Reconstruction loss function.
+        idem_func: Idempotency loss function.
+        tight_func: Tightness loss function.
+        tight_clamp (bool): Whether to apply tightness clamp.
+        tight_clamp_ratio (float): Ratio for tightness clamp.
+
+    Returns:
+        tuple: (loss_rec, loss_idem, loss_tight)
+    """
     # Forward passes
     fx = f(x)
     fz = f(z)
@@ -74,11 +93,18 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
     run_id = config['run_id']
     use_fourier_sampling = config['training'].get('use_fourier_sampling', False)
     use_amp = config['training']['use_amp']
+    use_validation = config['training'].get('use_validation', True)  # Added: use_validation flag
 
     # Early Stopping Parameters
-    patience = config['early_stopping'].get('patience', 5)
-    best_val_loss = float('inf')
-    epochs_without_improvement = 0
+    if use_validation:
+        patience = config['early_stopping'].get('patience', 5)
+        best_val_loss = float('inf')
+        epochs_without_improvement = 0
+    else:
+        # Initialize variables to avoid reference before assignment
+        patience = None
+        best_val_loss = None
+        epochs_without_improvement = None
 
     # Manifold Warmup Parameters
     warmup_config = config['training'].get('manifold_warmup', {})
@@ -167,7 +193,7 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
         writer.add_scalar('Logs/Epoch_Timer', time.time() - epoch_timer, epoch+1)
 
         # Validation
-        if (epoch + 1) % validation_period == 0 or (epoch + 1) == n_epochs:
+        if use_validation and ((epoch + 1) % validation_period == 0 or (epoch + 1) == n_epochs):
             # Initialize accumulators
             val_loss_rec = 0.0
             val_loss_idem = 0.0
@@ -246,6 +272,10 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
                     tqdm.write(f"Early stopping triggered after {patience} epochs without improvement.")
                     break  # Break out of the training loop
 
+            # Reset models to training mode
+            f.train()
+            f_copy.train()
+
         # Image Logging
         if (epoch + 1) % image_log_period == 0 or (epoch + 1) == n_epochs:
             # Save the sampled image
@@ -255,23 +285,18 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
                 n_images=5, n_recursions=1,
                 reconstruct=True, use_fourier_sampling=use_fourier_sampling
             )
-            val_original, val_reconstructed = rec_generate_images(
-                model=f, device=device, data=data_loader,
-                n_images=5, n_recursions=1,
-                reconstruct=True, use_fourier_sampling=use_fourier_sampling
-            )
             noise, generated = rec_generate_images(
                 model=f, device=device, data=data_loader,
                 n_images=5, n_recursions=1,
                 reconstruct=False, use_fourier_sampling=use_fourier_sampling
             )
+            f.train()
 
             writer.add_images('Image/Generated', generated[:, 0].detach(), epoch+1)
             writer.add_images('Image/Noise', noise.detach(), epoch+1)
             writer.add_images('Image/Reconstructed', reconstructed[:, 0].detach(), epoch+1)
             writer.add_images('Image/Original', original.detach(), epoch+1)
-            writer.add_images('Image/Validation/Reconstructed', val_reconstructed[:, 0].detach(), epoch+1)
-            writer.add_images('Image/Validation/Original', val_original.detach(), epoch+1)
+
             tqdm.write(f"Logged images for epoch [{epoch+1}/{n_epochs}]")
 
         # Checkpoint Saving
@@ -296,9 +321,9 @@ def main():
     parser.add_argument("--resume", type=str, default=None, help="Resume training from the specified checkpoint")
     args = parser.parse_args()
 
-    for config_path in ["config_mnist.yaml", 
-                        "config_mnist_ignite.yaml", 
-                        "config_mnist_fourier.yaml",
+    for config_path in ["config_mnist_fourier.yaml",
+                        "config_mnist.yaml",  
+                        "config_mnist_ignite.yaml",
                         "config_mnist_clamp.yaml"]:
 
         # Load configuration
@@ -313,35 +338,62 @@ def main():
         # Setup directories
         setup_dirs(config)
 
+        # Determine if validation is used
+        use_validation = config['training'].get('use_validation', True)
+
         # Load dataset
         dataset_name = config['dataset']['name']
         if dataset_name.lower() == "mnist":
-            # Modify load_mnist to return both train and validation loaders
-            train_loader, val_loader = load_mnist(
-                batch_size=config['training']['batch_size'],
-                download=config['dataset']['download'],
-                num_workers=config['dataset']['num_workers'],
-                pin_memory=config['dataset']['pin_memory'],
-                single_channel=config['dataset']['single_channel'],
-                validation_split=config['dataset'].get('validation_split', 0.1),
-                add_noise=config['dataset'].get('add_noise', False)
-            )
+            if use_validation:
+                # Modify load_mnist to return both train and validation loaders
+                train_loader, val_loader = load_mnist(
+                    batch_size=config['training']['batch_size'],
+                    download=config['dataset']['download'],
+                    num_workers=config['dataset']['num_workers'],
+                    pin_memory=config['dataset']['pin_memory'],
+                    single_channel=config['dataset']['single_channel'],
+                    validation_split=config['dataset'].get('validation_split', 0.1),
+                    add_noise=config['dataset'].get('add_noise', False)
+                )
+            else:
+                # Only load training data
+                train_loader = load_mnist(
+                    batch_size=config['training']['batch_size'],
+                    download=config['dataset']['download'],
+                    num_workers=config['dataset']['num_workers'],
+                    pin_memory=config['dataset']['pin_memory'],
+                    single_channel=config['dataset']['single_channel'],
+                    validation_split=0.0,  # No validation split
+                    add_noise=config['dataset'].get('add_noise', False)
+                )
+                val_loader = None
         elif dataset_name.lower() == "celeba":
-            # For CelebA, use 'train' and 'valid' splits
-            train_loader = load_celeb_a(
-                batch_size=config['training']['batch_size'],
-                download=config['dataset']['download'],
-                num_workers=config['dataset']['num_workers'],
-                pin_memory=config['dataset']['pin_memory'],
-                split='train'
-            )
-            val_loader = load_celeb_a(
-                batch_size=config['training']['batch_size'],
-                download=config['dataset']['download'],
-                num_workers=config['dataset']['num_workers'],
-                pin_memory=config['dataset']['pin_memory'],
-                split='valid'
-            )
+            if use_validation:
+                # For CelebA, use 'train' and 'valid' splits
+                train_loader = load_celeb_a(
+                    batch_size=config['training']['batch_size'],
+                    download=config['dataset']['download'],
+                    num_workers=config['dataset']['num_workers'],
+                    pin_memory=config['dataset']['pin_memory'],
+                    split='train'
+                )
+                val_loader = load_celeb_a(
+                    batch_size=config['training']['batch_size'],
+                    download=config['dataset']['download'],
+                    num_workers=config['dataset']['num_workers'],
+                    pin_memory=config['dataset']['pin_memory'],
+                    split='valid'
+                )
+            else:
+                # Only load training data
+                train_loader = load_celeb_a(
+                    batch_size=config['training']['batch_size'],
+                    download=config['dataset']['download'],
+                    num_workers=config['dataset']['num_workers'],
+                    pin_memory=config['dataset']['pin_memory'],
+                    split='train'
+                )
+                val_loader = None
         else:
             raise NotImplementedError(f"Dataset {dataset_name} is not supported yet.")
 
@@ -374,10 +426,10 @@ def main():
                                         betas=optimizer_config['betas'])
         else:
             raise NotImplementedError(f"Optimizer type {optimizer_config['type']} is not supported.")
-        
+
         scaler = torch.GradScaler(device.type, enabled=config['training']['use_amp'])
 
-        if args.resume is not None:
+        if args.resume is not None and use_validation:
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             scaler.load_state_dict(checkpoint['scaler_state_dict'])
 
@@ -390,7 +442,7 @@ def main():
                 opt=optimizer,
                 scaler=scaler,
                 data_loader=train_loader,
-                val_data_loader=val_loader,
+                val_data_loader=val_loader if use_validation else None,
                 config=config,
                 device=device,
                 writer=writer
@@ -399,9 +451,13 @@ def main():
             print("Training interrupted.")
             ans = input("Do you want to save a checkpoint (Y/N)?")
             if ans.lower() in ['yes', 'y']:
-                checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{config['current_epoch']+1}.pt")
+                if use_validation:
+                    epoch_to_save = config['current_epoch'] + 1
+                else:
+                    epoch_to_save = config.get('current_epoch', 0) + 1
+                checkpoint_path = os.path.join(config['checkpoint']['save_dir'], f"{run_id}_epoch_{epoch_to_save}.pt")
                 torch.save({
-                    'epoch': config['current_epoch'] + 1,
+                    'epoch': epoch_to_save,
                     'model_state_dict': getattr(model, '_orig_mod', model).state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'scaler_state_dict': scaler.state_dict(),
