@@ -5,9 +5,9 @@ training:
   batch_size: 256
   save_period: 50
   image_log_period: 10
-  compile_model: true
+  compile_model: false
   use_fourier_sampling: true
-  use_amp: false
+  use_amp: true
   use_validation: true
   manifold_warmup:
     enabled: false
