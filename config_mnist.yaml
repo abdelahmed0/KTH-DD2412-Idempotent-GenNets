@@ -1,4 +1,4 @@
-run_id: "0_MNIST"
+run_id: "BETTER_VAL_MNIST"
 
 training:
   n_epochs: 1000

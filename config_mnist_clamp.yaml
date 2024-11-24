@@ -1,4 +1,4 @@
-run_id: "0_MNIST_CLAMP"
+run_id: "BETTER_VAL_MNIST_CLAMP"
 
 training:
   n_epochs: 1000

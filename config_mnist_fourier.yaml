@@ -1,4 +1,4 @@
-run_id: "0_MNIST_FOURIER"
+run_id: "BETTER_VAL_MNIST_FOURIER"
 
 training:
   n_epochs: 1000
