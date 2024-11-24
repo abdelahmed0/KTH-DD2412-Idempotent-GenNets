@@ -1,4 +1,4 @@
-run_id: "0_MNIST_FOURIER"
+run_id: "0_MNIST_CLAMP"
 
 training:
   n_epochs: 1000
@@ -6,7 +6,7 @@ training:
   save_period: 50
   image_log_period: 10
   compile_model: true
-  use_fourier_sampling: true
+  use_fourier_sampling: false
   use_amp: false
   manifold_warmup:
     enabled: false
@@ -16,7 +16,7 @@ training:
 
 losses:
   loss_function: "MSE" # MSE, L1
-  tight_clamp: false
+  tight_clamp: true
   tight_clamp_ratio: 1.5
   lambda_rec: 20
   lambda_idem: 20

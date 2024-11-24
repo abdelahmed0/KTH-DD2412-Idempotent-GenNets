@@ -75,6 +75,8 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
     f_copy.train()
 
     for epoch in tqdm(range(config.get('start_epoch', 0), n_epochs), position=1, desc="Epoch", total=n_epochs, initial=config.get('start_epoch', 0)):
+        opt.zero_grad()
+        
         epoch_timer = time.time()
         # Calculate current lambda_tight based on warmup schedule
         if warmup_enabled and epoch < warmup_epochs:
@@ -119,7 +121,6 @@ def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.Gra
             scaler.scale(loss).backward()
             scaler.step(opt)
             scaler.update()
-            opt.zero_grad()
 
             loss_item = loss.item()
             update_step = epoch * len(data_loader) + batch_idx
@@ -201,21 +202,17 @@ def main():
     """Usage: python train.py --config config.yaml"""
     # Parse arguments
     parser = argparse.ArgumentParser(description="Train Idempotent Generative Networks")
-    parser.add_argument("--config", type=str, default="config.yaml", help="Path to the config file")
     parser.add_argument("--resume", type=str, default=None, help="Resume training from the specified checkpoint")
     args = parser.parse_args()
 
-    for config_idx in range(3):
-        if config_idx == 0:
-            args.config = "config_mnist.yaml"
-        elif config_idx == 1:
-            args.config = "config_mnist_ignite.yaml"
-        elif config_idx == 2:
-            args.config = "config_mnist_fourier.yaml"
+    for config_path in ["config_mnist.yaml", 
+                        "config_mnist_ignite.yaml", 
+                        "config_mnist_fourier.yaml",
+                        "config_mnist_clamp.yaml"]:
 
         # Load configuration
         if args.resume is None:
-            config = load_config(args.config)
+            config = load_config(config_path)
         else:
             checkpoint = load_checkpoint(args.resume)
             config = checkpoint['config']
