@@ -7,6 +7,7 @@ import time
 
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
+from torch.cuda.amp import GradScaler
 from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm
 
@@ -74,7 +75,7 @@ def compute_losses(f: DCGAN, f_copy: DCGAN, x: torch.Tensor, z: torch.Tensor,
     return loss_rec, loss_idem, loss_tight
 
 
-def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: torch.GradScaler,
+def train(f: DCGAN, f_copy: DCGAN, opt: torch.optim.Optimizer, scaler: GradScaler,
           data_loader: DataLoader, val_data_loader: DataLoader, config: dict,
           device: torch.device, writer: SummaryWriter):
     """Train the Idempotent Generative Network with optional Manifold Expansion Warmup"""
@@ -427,7 +428,7 @@ def main():
         else:
             raise NotImplementedError(f"Optimizer type {optimizer_config['type']} is not supported.")
 
-        scaler = torch.GradScaler(device.type, enabled=config['training']['use_amp'])
+        scaler = GradScaler(device.type, enabled=config['training']['use_amp'])
 
         if args.resume is not None and use_validation:
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
