@@ -21,9 +21,9 @@ def evaluate_generator(generated_images: torch.Tensor, real_images: torch.Tensor
 
         fid = FrechetInceptionDistance(input_img_size=image_size, normalize=normalized_images).set_dtype(torch.float64).to(device)
 
-        for batch in tqdm(range(len(generated_images)//batch_size), "FID calculating score"):
-            fid.update(imgs=real_images[batch*batch_size:(batch+1)*batch_size,:,:,:], real=True)
-            fid.update(imgs=generated_images[batch*batch_size:(batch+1)*batch_size,:,:,:], real=False)
+        for batch in tqdm(range(max(1, len(generated_images)//batch_size)), "FID calculating score"):
+            fid.update(imgs=real_images[batch*batch_size:(batch+1)*batch_size,:,:,:].to(device), real=True)
+            fid.update(imgs=generated_images[batch*batch_size:(batch+1)*batch_size,:,:,:].to(device), real=False)
 
         fid_score = fid.compute().item()
 
@@ -33,8 +33,8 @@ def evaluate_generator(generated_images: torch.Tensor, real_images: torch.Tensor
 
     inception = InceptionScore(normalize=normalized_images).to(device)
 
-    for batch in tqdm(range(len(generated_images)//batch_size), "IS calculating score"):
-        inception.update(generated_images[batch*batch_size:(batch+1)*batch_size,:,:,:])
+    for batch in tqdm(range(max(1, len(generated_images)//batch_size)), "IS calculating score"):
+        inception.update(generated_images[batch*batch_size:(batch+1)*batch_size,:,:,:].to(device))
     
     inception_score, inception_deviation = inception.compute()
 

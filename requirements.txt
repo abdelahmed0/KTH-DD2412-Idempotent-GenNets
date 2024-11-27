@@ -5,3 +5,5 @@ tensorboard
 tqdm
 torchvision
 gdown
+pyyaml
+torchsummary

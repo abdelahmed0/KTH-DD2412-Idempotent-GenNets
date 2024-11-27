@@ -7,7 +7,7 @@ from torchvision.datasets.mnist import MNIST
 from torchvision.datasets.celeba import CelebA
 
 
-def add_noise(x):
+def add_noise_(x):
     return (x + torch.randn_like(x) * 0.15).clamp(-1, 1)
 
 def load_mnist(
@@ -26,7 +26,7 @@ def load_mnist(
             transforms.Normalize([0.5], [0.5]),
         ]
         if add_noise:
-            trans.append(Lambda(add_noise))
+            trans.append(Lambda(add_noise_))
 
         transform = transforms.Compose(trans)
     else:
@@ -49,6 +49,7 @@ def load_mnist(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
+        drop_last=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
@@ -56,6 +57,7 @@ def load_mnist(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
+        drop_last=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )
@@ -75,7 +77,7 @@ def load_celeb_a(
             transforms.Resize(64),
             transforms.CenterCrop(64),
             transforms.ToTensor(),
-            transforms.Normalize([0.5]* 3, [0.5] * 3),  # Normalize to [-1, 1]
+            transforms.Normalize([0.5] * 3, [0.5] * 3),  # Normalize to [-1, 1]
         ]
     )
 
@@ -83,6 +85,7 @@ def load_celeb_a(
         CelebA(root=path, split=split, transform=transform, download=download),
         batch_size=batch_size,
         shuffle=True,
+        drop_last=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
     )

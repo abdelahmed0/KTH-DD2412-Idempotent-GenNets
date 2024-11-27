@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-
+from model.modules import ConvBlock
 
 """
     DCGAN implementation based on the 
@@ -12,7 +12,7 @@ from torch import nn
     and then modified by including Dropout and GroupNorm layers
 """
 class DCGAN(nn.Module):
-    def __init__(self, architecture='DCGAN', input_size=64, use_bias=False):
+    def __init__(self, architecture='DCGAN', input_size=64, norm='batchnorm', use_bias=True):
         super(DCGAN, self).__init__()
         if architecture == 'DCGAN_MNIST' or architecture == 'DCGAN_MNIST_2':
             num_channels = 1
@@ -20,32 +20,21 @@ class DCGAN(nn.Module):
             num_channels = 3
         else:
             raise NotImplementedError(f"Architecture {architecture} is not supported yet.")
-        self.encoder = Encoder(num_channels, input_size, architecture, use_bias)
-        self.decoder = Decoder(num_channels, input_size, architecture, use_bias)
-        self.weight_init()
+
+        self.encoder = Encoder(num_channels, input_size, architecture, norm, use_bias)
+        self.decoder = Decoder(num_channels, input_size, architecture, norm, use_bias)
 
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
         return x
-    
-    def weight_init(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                m.weight.data.normal_(0.0, 0.02)
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.normal_(1.0, 0.02)
-                m.bias.data.zero_()
-                
 
 class Encoder(nn.Module):
     """ 
         Discriminator for DCGAN
         Uses strided convolutions instead of pooling layers and no fully connected layers
     """
-    def __init__(self, num_channels, input_size, architecture, use_bias):
+    def __init__(self, num_channels, input_size, architecture, norm, use_bias):
         super(Encoder, self).__init__()
         layers = []
 
@@ -75,39 +64,28 @@ class Encoder(nn.Module):
         elif architecture == 'DCGAN':
             # Encoder for DCGAN (3x64x64)
             layers += [
-                nn.Conv2d(num_channels, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [3,64,64] -> [64,32,32]
-                nn.LeakyReLU(0.2, inplace=True),
-
-                nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [64,32,32] -> [128,16,16]
-                nn.BatchNorm2d(input_size * 2),
-                nn.LeakyReLU(0.2, inplace=True),
-
-                nn.Conv2d(input_size * 2, input_size * 4, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [128,16,16] -> [256,8,8]
-                nn.BatchNorm2d(input_size * 4),
-                nn.LeakyReLU(0.2, inplace=True),
-
-                nn.Conv2d(input_size * 4, input_size * 8, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [256,8,8] -> [512,4,4]
-                nn.BatchNorm2d(input_size * 8),
-                nn.LeakyReLU(0.2, inplace=True),
-
-                nn.Conv2d(input_size * 8, input_size * 8, kernel_size=4, stride=1, padding=0, bias=use_bias)   # [512,4,4] -> [512,1,1]
+                ConvBlock(num_channels, input_size, 4, 2, 1, norm='none', activation='leakyrelu', bias=use_bias),
+                ConvBlock(input_size, input_size*2, 4, 2, 1, norm=norm, activation='leakyrelu', bias=use_bias),
+                ConvBlock(input_size*2, input_size*4, 4, 2, 1, norm=norm, activation='leakyrelu', bias=use_bias),
+                ConvBlock(input_size*4, input_size*8, 4, 2, 1, norm=norm, activation='leakyrelu', bias=use_bias),
+                ConvBlock(input_size*8, input_size*8, 4, 1, 0, norm='none', activation='none', bias=use_bias),
             ]
         elif architecture == 'DCGAN_MNIST_2':
             # Encoder for MNIST (1x28x28)
             layers += [
-                nn.Conv2d(num_channels, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias), # [64, 14, 14]  
-                nn.LeakyReLU(0.2, inplace=True),
-
-                nn.Conv2d(input_size, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [128, 7, 7]  
-                nn.BatchNorm2d(input_size * 2),
-                nn.LeakyReLU(0.2, inplace=True),
-
-                nn.Conv2d(input_size * 2, input_size * 4, kernel_size=3, stride=2, padding=1, bias=use_bias),  # [128, 4, 4]  
-                nn.BatchNorm2d(input_size * 4),
-                nn.LeakyReLU(0.2, inplace=True),
-
-                nn.Conv2d(input_size * 4, input_size * 4, kernel_size=4, stride=1, padding=0, bias=use_bias), # [128, 1, 1]  
+                ConvBlock(num_channels, input_size, 4, 2, 1, norm="none", activation='leakyrelu', bias=use_bias),
+                ConvBlock(input_size, input_size*2, 4, 2, 1, norm=norm, activation='leakyrelu', bias=use_bias),
+                ConvBlock(input_size*2, input_size*4, 3, 2, 1, norm=norm, activation='leakyrelu', bias=use_bias),
+                ConvBlock(input_size*4, input_size*4, 4, 1, 0, norm="none", activation='none', bias=use_bias),
             ]
+
+            # layers += [
+            #     ConvBlock(num_channels, input_size, 4, 2, 1, norm='none', activation='leakyrelu', bias=use_bias),
+            #     ConvBlock(input_size, input_size*2, 4, 2, 1, norm=norm, activation='leakyrelu', bias=use_bias),
+            #     ConvBlock(input_size*2, input_size*4, 3, 1, 0, norm=norm, activation='leakyrelu', bias=use_bias),
+            #     ConvBlock(input_size*4, input_size*8, 3, 1, 0, norm=norm, activation='leakyrelu', bias=use_bias),
+            #     ConvBlock(input_size*8, input_size*8, 3, 1, 0, norm='none', activation='none', bias=use_bias),
+            # ]
 
         
         self.model = nn.Sequential(*layers)
@@ -121,7 +99,7 @@ class Decoder(nn.Module):
         Generator for DCGAN
         Uses fractional-strided convolutions instead of pooling layers and no fully connected layers
     """
-    def __init__(self, num_channels, input_size, architecture, use_bias):
+    def __init__(self, num_channels, input_size, architecture, norm, use_bias):
         super(Decoder, self).__init__()
         layers = []
         
@@ -154,43 +132,29 @@ class Decoder(nn.Module):
         elif architecture == 'DCGAN':
             # Decoder for DCGAN (3x64x64)
             layers += [
-                nn.ConvTranspose2d(input_size * 8, input_size * 8, kernel_size=4, stride=1, padding=0, bias=use_bias),  # [512,1,1] -> [512,4,4]
-                nn.BatchNorm2d(input_size * 8),
-                nn.ReLU(inplace=True),
-
-                nn.ConvTranspose2d(input_size * 8, input_size * 4, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [512,4,4] -> [256,8,8]
-                nn.BatchNorm2d(input_size * 4),
-                nn.ReLU(inplace=True),
-
-                nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=4, stride=2, padding=1, bias=use_bias),  # [256,8,8] -> [128,16,16]
-                nn.BatchNorm2d(input_size * 2),
-                nn.ReLU(inplace=True),
-
-                nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),      # [128,16,16] -> [64,32,32]
-                nn.BatchNorm2d(input_size),
-                nn.ReLU(inplace=True),
-
-                nn.ConvTranspose2d(input_size, num_channels, kernel_size=4, stride=2, padding=1, bias=use_bias),      # [64,32,32] -> [3,64,64]
-                nn.Tanh()
+                ConvBlock(input_size*8, input_size*8, 4, 1, 0, norm=norm, activation='relu', transposed=True, bias=use_bias),
+                ConvBlock(input_size*8, input_size*4, 4, 2, 1, norm=norm, activation='relu', transposed=True, bias=use_bias),
+                ConvBlock(input_size*4, input_size*2, 4, 2, 1, norm=norm, activation='relu', transposed=True, bias=use_bias),
+                ConvBlock(input_size*2, input_size, 4, 2, 1, norm=norm, activation='relu', transposed=True, bias=use_bias),
+                ConvBlock(input_size, num_channels, 4, 2, 1, norm='none', activation='tanh', transposed=True, bias=use_bias),
             ]
         elif architecture == 'DCGAN_MNIST_2':
             # Decoder for MNIST (1x28x28)
             layers += [
-                nn.ConvTranspose2d(input_size * 4, input_size * 4, kernel_size=4, stride=1, padding=0, bias=use_bias), 
-                nn.BatchNorm2d(input_size * 4),
-                nn.ReLU(inplace=True),
-
-                nn.ConvTranspose2d(input_size * 4, input_size * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),  
-                nn.BatchNorm2d(input_size * 2),
-                nn.ReLU(inplace=True),
-
-                nn.ConvTranspose2d(input_size * 2, input_size, kernel_size=4, stride=2, padding=1, bias=use_bias),      
-                nn.BatchNorm2d(input_size),
-                nn.ReLU(inplace=True),
-
-                nn.ConvTranspose2d(input_size, num_channels, kernel_size=4, stride=2, padding=1, bias=use_bias),     
-                nn.Tanh()
+                ConvBlock(input_size*4, input_size*4, 4, 1, 0, norm=norm, activation='relu', transposed=True, bias=use_bias),
+                ConvBlock(input_size*4, input_size*2, 3, 2, 1, norm=norm, activation='relu', transposed=True, bias=use_bias),
+                ConvBlock(input_size*2, input_size, 4, 2, 1, norm=norm, activation='relu', transposed=True, bias=use_bias),
+                ConvBlock(input_size, num_channels, 4, 2, 1, norm="none", activation='tanh', transposed=True, bias=use_bias),
             ]
+
+            # in_channels = input_size * 8
+            # layers += [
+            #     ConvBlock(in_channels, in_channels // 2, 3, 1, 0, norm=norm, activation='relu', transposed=True, bias=use_bias),
+            #     ConvBlock(in_channels // 2, in_channels // 4, 3, 1, 0, norm=norm, activation='relu', transposed=True, bias=use_bias),
+            #     ConvBlock(in_channels // 4, in_channels // 8, 3, 1, 0, norm=norm, activation='relu', transposed=True, bias=use_bias),
+            #     ConvBlock(in_channels // 8, in_channels // 16, 4, 2, 1, norm=norm, activation='relu', transposed=True, bias=use_bias),
+            #     ConvBlock(in_channels // 16, num_channels, 4, 2, 1, norm='none', activation='tanh', transposed=True, bias=use_bias),
+            # ]
         
         self.model = nn.Sequential(*layers)
     
@@ -198,11 +162,12 @@ class Decoder(nn.Module):
         return self.model(x)
 
 if __name__ == "__main__":
-    model = DCGAN()
-    print(model)
+    from torchsummary import summary
 
+    model = DCGAN()
     x = torch.randn(5, 3, 64, 64)
     y = model(x)
+    summary(model, (3, 64, 64), device='cpu')
     print("DCGAN", y.shape)
     del model
 
