@@ -6,37 +6,51 @@ from torch import nn
     Note that usual ReLUs are used here.
     TODO: Check if strides are counterproductive for U-Net
 """
-class UNet(nn.Module):
-    def __init__(self):
-        super(UNet, self).__init__()
+class UNetConditional(nn.Module):
+    def __init__(self, device):
+        super(UNetConditional, self).__init__()
+        self.device = device
         self.encoder = Encoder()
         self.decoder = Decoder()
+        self.embedding_layer = nn.Embedding(40, 256)
+        self.attribute_indices = torch.arange(40, device=device)
         self.weight_init()
 
-    def forward(self, x):
+    def forward(self, x, y):
+        """y: list of attributes (labels) as a binary vector. Shape: (batch_size, 40) for celeb A"""
+        emb = None
+        if y is not None:
+            # Create a mask for attributes with a value of 1
+            mask = y <= 0  # Boolean mask of shape [batch_size, num_attributes]
+
+            # Perform embedding lookup for all attributes (including zero embeddings for mask == False)
+            all_embeddings: torch.Tensor = self.embedding_layer(self.attribute_indices)
+            all_embeddings = all_embeddings.repeat(y.shape[0], 1, 1)
+
+            # Zero out embeddings for attributes not present (mask == False)
+            all_embeddings[mask] = 0
+
+            # Sum embeddings across attributes for each sample
+            emb = all_embeddings.sum(dim=1)
+
         # Encoder path
-        x1 = self.encoder.down1(x) 
-        x2 = self.encoder.down2(x1)  
-        x3 = self.encoder.down3(x2)  
-        x4 = self.encoder.down4(x3)  
-        x5 = self.encoder.bottleneck(x4)  
+        x1 = self.encoder.down1(x, emb)
+        x2 = self.encoder.down2(x1, emb)
+        x3 = self.encoder.down3(x2, emb)
+        x4 = self.encoder.bottleneck(x3)
 
         # Decoder path
-        x = self.decoder.up1(x5)
-        x = torch.cat([x4, x], dim=1)
-        x = self.decoder.conv1(x)
-
-        x = self.decoder.up2(x)
+        x = self.decoder.up2(x4)
         x = torch.cat([x3, x], dim=1)
-        x = self.decoder.conv2(x)
+        x = self.decoder.conv2(x, emb)
 
         x = self.decoder.up3(x)
         x = torch.cat([x2, x], dim=1)
-        x = self.decoder.conv3(x)
+        x = self.decoder.conv3(x, emb)
 
         x = self.decoder.up4(x)
         x = torch.cat([x1, x], dim=1)
-        x = self.decoder.conv4(x)
+        x = self.decoder.conv4(x, emb)
 
         x = self.decoder.final_up(x)
         return x
@@ -58,9 +72,20 @@ class DownBlock(nn.Module):
             nn.GroupNorm(1, out_channels),
             nn.ReLU()
         )
+        self.embedding_layer = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(
+                256,
+                out_channels
+            ),
+        )
 
-    def forward(self, x):
+    def forward(self, x, y):
         x = self.seq(x)
+        if y is not None:
+            emb = self.embedding_layer(y)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
+            x = x + emb 
+
         return x
         
 
@@ -73,12 +98,10 @@ class Encoder(nn.Module):
  
         self.down3 = DownBlock(128, 256, kernel_size=4, stride=2, padding=1)  # (N, 256, 8, 8)
 
-        self.down4 = DownBlock(256, 512, kernel_size=4, stride=2, padding=1)  # (N, 512, 4, 4)
-
         self.bottleneck = nn.Sequential(
-            nn.Conv2d(512, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 2, 2)
-            #nn.BatchNorm2d(512),
-            nn.GroupNorm(1, 512),
+            nn.Conv2d(256, 256, kernel_size=4, stride=2, padding=1),  # (N, 256, 4, 4)
+            #nn.BatchNorm2d(256),
+            nn.GroupNorm(1, 256),
             nn.ReLU()
         )
 
@@ -86,29 +109,33 @@ class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, padding):
         super(ConvBlock, self).__init__()
         self.seq = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding),  # (N, 512, 4, 4)
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding),
             #nn.BatchNorm2d(512),
             nn.GroupNorm(1, out_channels),
             nn.ReLU()
         )
 
-    def forward(self, x):
+        self.embedding_layer = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(
+                256,
+                out_channels
+            ),
+        )
+
+    def forward(self, x, y):
         x = self.seq(x)
+        if y is not None:
+            emb = self.embedding_layer(y)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
+            x = x + emb
+
         return x
 
 class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
-        self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(512, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 4, 4)
-            #nn.BatchNorm2d(512),
-            nn.GroupNorm(1, 512),
-            nn.ReLU()
-        )
-        self.conv1 = ConvBlock(512 + 512, 512, kernel_size=3, padding=1)  # (N, 512, 4, 4)
-
         self.up2 = nn.Sequential(
-            nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),  # (N, 256, 8, 8)
+            nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1),  # (N, 256, 8, 8)
             #nn.BatchNorm2d(256),
             nn.GroupNorm(1, 256),
             nn.ReLU()
@@ -138,9 +165,11 @@ class Decoder(nn.Module):
         )
 
 if __name__ == "__main__":
-    model = UNet()
-    print(model)
+    model = UNetConditional("cpu")
+    #print(model)
 
     x = torch.randn(5, 3, 64, 64)
-    y = model(x)
+    y = model(x, None)
+    print(y.shape)
+    y = model(x, torch.ones((5,40), dtype=torch.int))
     print(y.shape)  # Should output torch.Size([5, 3, 64, 64])

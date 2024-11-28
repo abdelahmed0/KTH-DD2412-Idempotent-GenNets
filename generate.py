@@ -6,24 +6,29 @@ from util.plot_images import plot_images
 from util.model_util import load_model, load_checkpoint
 from util.function_util import fourier_sample
 
-def rec_generate_images(model, device, data, n_images, n_recursions, reconstruct, use_fourier_sampling):
+def rec_generate_images(model, device, data, n_images, n_recursions, reconstruct, use_fourier_sampling, with_label=False):
     assert n_recursions > 0, f"n_recursions must be greater than 0! Got {n_recursions}"
     original = torch.empty(n_images, *next(iter(data))[0].shape[1:]) # []
     reconstructed = torch.empty(n_images, n_recursions, *next(iter(data))[0].shape[1:]) #[[] for _ in range(n_images)]
     with torch.no_grad():
         if reconstruct:
-            for i, (x, _) in enumerate(data):
+            for i, (x, y) in enumerate(data):
                 if i == n_images:
                     break
 
                 original[i] = x[0]
                 x_hat = x.to(device)
+                y = y.to(device) #, dtype=torch.float)
 
                 for j in range(n_recursions):
-                    x_hat = model(x_hat)
+                    if with_label:
+                        x_hat = model(x_hat, y)
+                    else:
+                        x_hat = model(x_hat)
                     reconstructed[i, j] = x_hat[0].cpu()
         else:
-            batch, _ = next(iter(data))
+            batch, y = next(iter(data))
+            y = y.to(device) #, dtype=torch.float)
             for i in range(n_images):
                 if use_fourier_sampling:
                     x = fourier_sample(batch)
@@ -31,9 +36,14 @@ def rec_generate_images(model, device, data, n_images, n_recursions, reconstruct
                     x = torch.randn_like(batch).to(device)
                 original[i] = x[0].clamp(-1.0, 1.0).cpu()
                 x_hat = x.to(device)
-
+                
+                rand_i = torch.randint(0, y.shape[0], (1,))
+                y_hat = y[rand_i]
                 for j in range(n_recursions):
-                    x_hat = model(x_hat)
+                    if with_label:
+                        x_hat = model(x_hat, y_hat)
+                    else:
+                        x_hat = model(x_hat)
                     reconstructed[i, j] = x_hat[0].cpu()
     
     return original, reconstructed

@@ -7,9 +7,8 @@ import gc
 
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from model.dcgan import DCGAN
-from model.u_net import UNet
-from model.ign_trainer import IGNTrainer
+from model.u_net_conditional import UNetConditional
+from model.ign_conditional_trainer import IGNConditionalTrainer
 from util.dataset import load_mnist, load_celeb_a
 from util.model_util import load_checkpoint
 
@@ -89,29 +88,14 @@ def main():
     # Setup device
     device = torch.device("cuda" if config['device']['use_cuda'] and torch.cuda.is_available() else "cpu")
 
-    # Model params
-    architecture = config["model"]["architecture"]
-    norm = config["model"]["norm"]
-    use_bias = config["model"]["use_bias"]
-    input_size = config["model"].get("input_size", 64)
-
     torch.backends.cudnn.benchmark = True 
 
     try:
         completed = False
         while not completed:
             # Initialize models
-            if "dcgan" in architecture.lower():
-                model = DCGAN(
-                    architecture=architecture,
-                    input_size=input_size,
-                    norm=norm,
-                    use_bias=use_bias,
-                )
-            elif "unet" in architecture.lower().replace("_",""):
-                model = UNet()
-            
-            trainer = IGNTrainer(model=model, config=config, device=device, checkpoint=None if args.resume is None else checkpoint)
+            model = UNetConditional(device)
+            trainer = IGNConditionalTrainer(model=model, config=config, device=device, checkpoint=None if args.resume is None else checkpoint)
 
             completed = trainer.fit(
                 data_loader=train_loader,

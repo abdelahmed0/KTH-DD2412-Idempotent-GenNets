@@ -1,4 +1,4 @@
-run_id: "CELEBA_FINAL_FOURIER"
+run_id: "CELEBA_FOURIER"
 
 training:
   n_epochs: 1000
