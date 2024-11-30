@@ -18,8 +18,7 @@ class UNetConditional(nn.Module):
 
     def forward(self, x, y):
         """y: list of attributes (labels) as a binary vector. Shape: (batch_size, 40) for celeb A"""
-        emb = None
-        if y is not None:
+        if y is not None: #y.nelement() > 0:
             # Create a mask for attributes with a value of 1
             mask = y <= 0  # Boolean mask of shape [batch_size, num_attributes]
 
@@ -31,26 +30,26 @@ class UNetConditional(nn.Module):
             all_embeddings[mask] = 0
 
             # Sum embeddings across attributes for each sample
-            emb = all_embeddings.sum(dim=1)
+            y = all_embeddings.sum(dim=1)
 
         # Encoder path
-        x1 = self.encoder.down1(x, emb)
-        x2 = self.encoder.down2(x1, emb)
-        x3 = self.encoder.down3(x2, emb)
+        x1 = self.encoder.down1(x, y)
+        x2 = self.encoder.down2(x1, y)
+        x3 = self.encoder.down3(x2, y)
         x4 = self.encoder.bottleneck(x3)
 
         # Decoder path
         x = self.decoder.up2(x4)
         x = torch.cat([x3, x], dim=1)
-        x = self.decoder.conv2(x, emb)
+        x = self.decoder.conv2(x, y)
 
         x = self.decoder.up3(x)
         x = torch.cat([x2, x], dim=1)
-        x = self.decoder.conv3(x, emb)
+        x = self.decoder.conv3(x, y)
 
         x = self.decoder.up4(x)
         x = torch.cat([x1, x], dim=1)
-        x = self.decoder.conv4(x, emb)
+        x = self.decoder.conv4(x, y)
 
         x = self.decoder.final_up(x)
         return x

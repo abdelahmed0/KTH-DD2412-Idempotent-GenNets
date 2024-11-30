@@ -1,4 +1,4 @@
-run_id: "CELEBA_FOURIER"
+run_id: "CELEBA_UNET"
 
 training:
   n_epochs: 1000
@@ -34,15 +34,15 @@ optimizer:
   betas: [0.5, 0.999]
 
 model:
-  architecture: "DCGAN" # DCGAN & DCGAN_MNIST
-  use_bias: true
-  norm: "batchnorm" # batchnorm, grouopnorm
+  architecture: "Unet" # DCGAN & DCGAN_MNIST
+  use_bias: true  # Only for DCGAN
+  norm: "batchnorm" # batchnorm, grouopnorm (Only for DCGAN)
 
 dataset:
   name: "CELEBA" # MNIST, CELEBA
   path: "./data"
   download: true
-  num_workers: 5
+  num_workers: 8
   pin_memory: true
   single_channel: true  # Only used for MNIST
 

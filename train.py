@@ -9,7 +9,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 
 from model.dcgan import DCGAN
 from model.u_net import UNet
-from model.ign_trainer import IGNTrainer
+from trainer.ign_trainer import IGNTrainer
 from util.dataset import load_mnist, load_celeb_a
 from util.model_util import load_checkpoint
 

@@ -5,7 +5,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from model.ign_trainer import IGNTrainer
+from trainer.ign_trainer import IGNTrainer
 from util.function_util import fourier_sample, normalize_batch
 from generate import rec_generate_images
 from util.scoring import evaluate_generator
@@ -31,11 +31,13 @@ class IGNConditionalTrainer(IGNTrainer):
         if use_fourier_sampling:
             z = fourier_sample(x)
         else:
-            z = torch.randn_like(x, device=self.device)
+            z = torch.randn_like(x)
 
         if torch.rand(1) < 0.1: # No label 10% of the time
-            y = None
+            y = None #torch.empty(0, device=self.device, dtype=y.dtype)
 
+        # x, z are float32
+        # f_z, fz are float16
         self.model_copy.load_state_dict(self.model.state_dict())
         fx = self.model(x, y)
         fz = self.model(z, y)
@@ -294,7 +296,7 @@ class IGNConditionalTrainer(IGNTrainer):
         avg_loss_rec = 0.0
         avg_loss_idem = 0.0
         avg_loss_tight = 0.0
-        train_batches = 0
+        train_steps = 0
 
         self.model.train()
         self.model_copy.train()
@@ -324,10 +326,10 @@ class IGNConditionalTrainer(IGNTrainer):
             avg_loss_rec += loss_rec.item()
             avg_loss_idem += loss_idem.item()
             avg_loss_tight += loss_tight.item()
-            train_batches += 1
+            train_steps += 1
 
-        writer.add_scalar("Loss/Total", avg_loss_total / train_batches, epoch + 1)
-        writer.add_scalar("Loss/Reconstruction", avg_loss_rec / train_batches, epoch + 1)
-        writer.add_scalar("Loss/Idempotence", avg_loss_idem / train_batches, epoch + 1)
-        writer.add_scalar("Loss/Tightness", avg_loss_tight / train_batches, epoch + 1)
+        writer.add_scalar("Loss/Total", avg_loss_total / train_steps, epoch + 1)
+        writer.add_scalar("Loss/Reconstruction", avg_loss_rec / train_steps, epoch + 1)
+        writer.add_scalar("Loss/Idempotence", avg_loss_idem / train_steps, epoch + 1)
+        writer.add_scalar("Loss/Tightness", avg_loss_tight / train_steps, epoch + 1)
         writer.add_scalar("Hyperparameters/Lambda_Tight", lambda_tight, epoch + 1)

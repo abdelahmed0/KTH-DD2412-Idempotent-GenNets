@@ -8,7 +8,7 @@ import gc
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from model.u_net_conditional import UNetConditional
-from model.ign_conditional_trainer import IGNConditionalTrainer
+from trainer.ign_conditional_trainer import IGNConditionalTrainer
 from util.dataset import load_mnist, load_celeb_a
 from util.model_util import load_checkpoint
 
@@ -87,7 +87,11 @@ def main():
 
     # Setup device
     device = torch.device("cuda" if config['device']['use_cuda'] and torch.cuda.is_available() else "cpu")
+    if device.type == "cuda":
+        print("Set high matmul precision!")
+        torch.set_float32_matmul_precision('high')
 
+    torch._dynamo.config.cache_size_limit = 16 # Graph breaks too often, debug using "TORCH_LOGS="recompiles" python train_conditional.py --config config.yaml"
     torch.backends.cudnn.benchmark = True 
 
     try:

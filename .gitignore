@@ -165,3 +165,5 @@ cython_debug/
 /data
 /runs
 /checkpoints
+/image_gui_output
+/notebooks
