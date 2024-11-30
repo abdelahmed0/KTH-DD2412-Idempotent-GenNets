@@ -28,7 +28,7 @@ def rec_generate_images(
 
     original = torch.empty(n_images, *next(iter(data))[0].shape[1:])  # []
     reconstructed = torch.empty(
-        n_images, n_recursions + 1 if transforms else 0, *next(iter(data))[0].shape[1:]
+        n_images, n_recursions + (1 if transforms else 0), *next(iter(data))[0].shape[1:]
     )  # [[] for _ in range(n_images)]
     with torch.inference_mode():
         if reconstruct:
@@ -53,7 +53,7 @@ def rec_generate_images(
                         x_hat = model(x_hat, None if y_input_is_None else y)
                     else:
                         x_hat = model(x_hat)
-                    reconstructed[i, j + 1 if transforms else 0] = x_hat[0].cpu()
+                    reconstructed[i, j + (1 if transforms else 0)] = x_hat[0].cpu()
         else:
             batch, y = next(iter(data))
             y = y.to(device)  # , dtype=torch.float)

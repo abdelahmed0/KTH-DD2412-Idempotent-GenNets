@@ -12,13 +12,15 @@ def get_activation(activation):
     else:
         raise NotImplementedError(f"Activation {activation} is not supported yet.")
 
-def get_norm(norm, channels, groups=32):
+def get_norm(norm, in_channels, groups=32):
     if norm == 'none':
         return None
     elif norm == 'batchnorm':
-        return nn.BatchNorm2d(channels)
+        return nn.BatchNorm2d(in_channels)
     elif norm == 'groupnorm':
-        return nn.GroupNorm(groups, channels)
+        return nn.GroupNorm(groups, in_channels)
+    elif norm == 'instancenorm':
+        return nn.InstanceNorm2d(in_channels)
     else:
         raise NotImplementedError(f"Norm {norm} is not supported yet.")
 

@@ -111,7 +111,7 @@ class IGNTrainer:
         if use_fourier_sampling:
             z = fourier_sample(x)
         else:
-            z = torch.randn_like(x, device=self.device)
+            z = torch.randn_like(x)
 
         self.model_copy.load_state_dict(self.model.state_dict())
         fx = self.model(x)

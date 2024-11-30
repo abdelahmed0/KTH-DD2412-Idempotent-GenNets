@@ -1,4 +1,4 @@
-run_id: "CELEBA_CONDITIONAL_UNET_2"
+run_id: "CELEBA_CONDITIONAL_UNET"
 
 training:
   n_epochs: 1000
@@ -34,7 +34,7 @@ optimizer:
   betas: [0.5, 0.999]
 
 model:
-  architecture: "Unet_conditional" # DCGAN, DCGAN_MNIST, DCGAN_MNIST_2, UNet, UNet_conditional
+  architecture: "UNet_conditional" # DCGAN, DCGAN_MNIST, DCGAN_MNIST_2, UNet, UNet_conditional
   use_bias: true
   norm: "batchnorm" # batchnorm, grouopnorm (Only for DCGAN)
 

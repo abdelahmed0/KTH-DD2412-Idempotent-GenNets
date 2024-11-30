@@ -34,7 +34,7 @@ optimizer:
   betas: [0.5, 0.999]
 
 model:
-  architecture: "DCGAN" # DCGAN & DCGAN_MNIST
+  architecture: "DCGAN" # DCGAN, DCGAN_MNIST, DCGAN_MNIST_2, UNet, UNet_conditional
   use_bias: true
   norm: "batchnorm" # batchnorm, grouopnorm
 

@@ -1,4 +1,4 @@
-run_id: "CELEBA_UNET"
+run_id: "CELEBA_FOURIER_GROUPNORM"
 
 training:
   n_epochs: 1000
@@ -19,7 +19,7 @@ training:
 
 losses:
   loss_function: "L1" # L1, MSE
-  lambda_rec: 18
+  lambda_rec: 20
   lambda_idem: 20
   lambda_tight: 2.5         # If warmup is enabled, this value is the end value of lambda_tight
   tight_clamp: true
@@ -31,20 +31,19 @@ early_stopping:
 optimizer:
   type: "Adam"
   lr: 0.0001
-  betas: [0.9, 0.999]
+  betas: [0.5, 0.999]
 
 model:
-  architecture: "UNet" # DCGAN & DCGAN_MNIST
-  use_bias: true  # Only for DCGAN
-  norm: "batchnorm" # batchnorm, grouopnorm (Only for DCGAN)
+  architecture: "DCGAN" # DCGAN & DCGAN_MNIST
+  use_bias: true
+  norm: "grouopnorm" # batchnorm, grouopnorm (Only for DCGAN)
 
 dataset:
   name: "CELEBA" # MNIST, CELEBA
   path: "./data"
   download: true
-  num_workers: 8
+  num_workers: 5
   pin_memory: true
-  random_flip: true # Only used for CelebA
   single_channel: true  # Only used for MNIST
 
 logging:

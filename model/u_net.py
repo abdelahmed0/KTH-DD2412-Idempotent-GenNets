@@ -18,15 +18,10 @@ class UNet(nn.Module):
         x1 = self.encoder.down1(x) 
         x2 = self.encoder.down2(x1)  
         x3 = self.encoder.down3(x2)  
-        x4 = self.encoder.down4(x3)  
-        x5 = self.encoder.bottleneck(x4)  
+        x4 = self.encoder.bottleneck(x3)  
 
         # Decoder path
-        x = self.decoder.up1(x5)
-        x = torch.cat([x4, x], dim=1)
-        x = self.decoder.conv1(x)
-
-        x = self.decoder.up2(x)
+        x = self.decoder.up2(x4)
         x = torch.cat([x3, x], dim=1)
         x = self.decoder.conv2(x)
 
@@ -73,12 +68,12 @@ class Encoder(nn.Module):
  
         self.down3 = DownBlock(128, 256, kernel_size=4, stride=2, padding=1)  # (N, 256, 8, 8)
 
-        self.down4 = DownBlock(256, 512, kernel_size=4, stride=2, padding=1)  # (N, 512, 4, 4)
+        #self.down4 = DownBlock(256, 512, kernel_size=4, stride=2, padding=1)  # (N, 512, 4, 4)
 
         self.bottleneck = nn.Sequential(
-            nn.Conv2d(512, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 2, 2)
+            nn.Conv2d(256, 256, kernel_size=4, stride=2, padding=1),  # (N, 512, 2, 2)
             #nn.BatchNorm2d(512),
-            nn.GroupNorm(1, 512),
+            nn.GroupNorm(1, 256),
             nn.ReLU()
         )
 
@@ -99,16 +94,16 @@ class ConvBlock(nn.Module):
 class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
-        self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(512, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 4, 4)
-            #nn.BatchNorm2d(512),
-            nn.GroupNorm(1, 512),
-            nn.ReLU()
-        )
-        self.conv1 = ConvBlock(512 + 512, 512, kernel_size=3, padding=1)  # (N, 512, 4, 4)
+        # self.up1 = nn.Sequential(
+        #     nn.ConvTranspose2d(512, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 4, 4)
+        #     #nn.BatchNorm2d(512),
+        #     nn.GroupNorm(1, 512),
+        #     nn.ReLU()
+        # )
+        # self.conv1 = ConvBlock(512 + 512, 512, kernel_size=3, padding=1)  # (N, 512, 4, 4)
 
         self.up2 = nn.Sequential(
-            nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),  # (N, 256, 8, 8)
+            nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1),  # (N, 256, 8, 8)
             #nn.BatchNorm2d(256),
             nn.GroupNorm(1, 256),
             nn.ReLU()

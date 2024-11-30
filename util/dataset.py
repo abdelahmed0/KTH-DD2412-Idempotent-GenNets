@@ -69,6 +69,7 @@ def load_celeb_a(
     download=True,
     num_workers=3,
     pin_memory=False,
+    random_flip=False,
     split="train",
     path="./data",
 ) -> DataLoader:
@@ -79,6 +80,10 @@ def load_celeb_a(
             transforms.ToTensor(),
             transforms.Normalize([0.5] * 3, [0.5] * 3),  # Normalize to [-1, 1]
         ]
+        +
+        ([
+            transforms.RandomHorizontalFlip(p=0.5)
+        ] if random_flip else [])
     )
 
     celebA = DataLoader(

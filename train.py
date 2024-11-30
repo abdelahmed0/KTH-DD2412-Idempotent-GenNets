@@ -1,14 +1,16 @@
 import argparse
-import os
+import gc
 import numpy as np
+import os
 import torch
 import yaml
-import gc
 
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from model.dcgan import DCGAN
+from model.u_net_conditional import UNetConditional
 from model.u_net import UNet
+from trainer.ign_conditional_trainer import IGNConditionalTrainer
 from trainer.ign_trainer import IGNTrainer
 from util.dataset import load_mnist, load_celeb_a
 from util.model_util import load_checkpoint
@@ -24,6 +26,32 @@ def load_config(config_path):
         config = yaml.safe_load(file)
     return config
 
+
+def get_trainer(args, config: dict, checkpoint: dict, device: torch.device):
+    # Model params
+    architecture = config["model"]["architecture"]
+    norm = config["model"]["norm"]
+    use_bias = config["model"]["use_bias"]
+    input_size = config["model"].get("input_size", 64)
+
+    # Initialize models
+    if "dcgan" in architecture.lower():
+        model = DCGAN(
+            architecture=architecture,
+            input_size=input_size,
+            norm=norm,
+            use_bias=use_bias,
+        )
+        trainer = IGNTrainer(model=model, config=config, device=device, checkpoint=checkpoint)
+    elif "unet" in architecture.lower().replace("_",""):
+        if "conditional" in architecture.lower():
+            model = UNetConditional(device)
+            trainer = IGNConditionalTrainer(model=model, config=config, device=device, checkpoint=checkpoint)
+        else:
+            model = UNet()
+            trainer = IGNTrainer(model=model, config=config, device=device, checkpoint=checkpoint)
+
+    return trainer
 
 def main():
     """Usage: python train.py --config config.yaml"""
@@ -41,6 +69,7 @@ def main():
     # Load configuration
     if args.resume is None:
         config = load_config(args.config)
+        checkpoint = None
     else:
         checkpoint = load_checkpoint(args.resume)
         config = checkpoint['config']
@@ -70,6 +99,7 @@ def main():
             download=config['dataset']['download'],
             num_workers=config['dataset']['num_workers'],
             pin_memory=config['dataset']['pin_memory'],
+            random_flip=config['dataset'].get('random_flip', False),
             split='train'
         )
         val_loader = load_celeb_a(
@@ -77,6 +107,7 @@ def main():
             download=config['dataset']['download'],
             num_workers=config['dataset']['num_workers'],
             pin_memory=config['dataset']['pin_memory'],
+            random_flip=config['dataset'].get('random_flip', False),
             split='valid'
         )
     else:
@@ -88,30 +119,17 @@ def main():
 
     # Setup device
     device = torch.device("cuda" if config['device']['use_cuda'] and torch.cuda.is_available() else "cpu")
+    if device.type == "cuda":
+        print("Set high matmul precision!")
+        torch.set_float32_matmul_precision('high')
 
-    # Model params
-    architecture = config["model"]["architecture"]
-    norm = config["model"]["norm"]
-    use_bias = config["model"]["use_bias"]
-    input_size = config["model"].get("input_size", 64)
-
+    torch._dynamo.config.cache_size_limit = 16 # Graph breaks too often, debug using "TORCH_LOGS="recompiles" python train_conditional.py --config config.yaml"
     torch.backends.cudnn.benchmark = True 
 
     try:
         completed = False
         while not completed:
-            # Initialize models
-            if "dcgan" in architecture.lower():
-                model = DCGAN(
-                    architecture=architecture,
-                    input_size=input_size,
-                    norm=norm,
-                    use_bias=use_bias,
-                )
-            elif "unet" in architecture.lower().replace("_",""):
-                model = UNet()
-            
-            trainer = IGNTrainer(model=model, config=config, device=device, checkpoint=None if args.resume is None else checkpoint)
+            trainer = get_trainer(args, config, checkpoint, device)
 
             completed = trainer.fit(
                 data_loader=train_loader,
@@ -119,7 +137,7 @@ def main():
                 writer=writer
             )
 
-            del trainer, model
+            del trainer
             gc.collect()
             torch.cuda.empty_cache()
             torch.clear_autocast_cache()
