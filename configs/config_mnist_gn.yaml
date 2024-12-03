@@ -34,9 +34,9 @@ optimizer:
   betas: [0.5, 0.999]
 
 model:
-  architecture: "DCGAN_MNIST_2" # DCGAN & DCGAN_MNIST
+  architecture: "DCGAN_MNIST_2" # DCGAN, DCGAN_MNIST, DCGAN_MNIST_2
   use_bias: true
-  norm: "instancenorm" # batchnorm, grouopnorm, instancenorm
+  norm: "groupnorm" # batchnorm, groupnorm, instancenorm (not for DCGAN_MNIST)
 
 dataset:
   name: "mnist" # MNIST, CELEBA
