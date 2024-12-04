@@ -37,6 +37,8 @@ model:
   architecture: "DCGAN" # DCGAN & DCGAN_MNIST
   use_bias: true
   norm: "grouopnorm" # batchnorm, grouopnorm (Only for DCGAN)
+  num_groups: 8
+  dropout: 0.1 # 0.0 is disabled
 
 dataset:
   name: "CELEBA" # MNIST, CELEBA

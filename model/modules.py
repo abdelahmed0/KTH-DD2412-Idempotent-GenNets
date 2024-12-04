@@ -26,15 +26,20 @@ def get_norm(norm, in_channels, groups=32):
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding,
-                 norm='batchnorm', activation='leakyrelu', transposed=False, bias=False):
+                 norm='batchnorm', activation='leakyrelu', transposed=False, 
+                 bias=False, num_groups=32, dropout=None):
         super().__init__()
         if transposed:
             self.conv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding, bias=bias)
         else:
             self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=bias)
 
-        self.norm = get_norm(norm, out_channels)
+        self.norm = get_norm(norm, out_channels, num_groups)
         self.activation = get_activation(activation)
+        if dropout:
+            self.dropout = nn.Dropout2d(dropout)
+        else:
+            self.dropout = None
 
         self.init_weight()
 
@@ -47,6 +52,8 @@ class ConvBlock(nn.Module):
 
     def forward(self, x):
         x = self.conv(x)
+        if self.dropout is not None:
+            x = self.dropout(x)
         if self.norm is not None:
             x = self.norm(x)
         if self.activation is not None:

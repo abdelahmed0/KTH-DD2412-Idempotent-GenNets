@@ -1,4 +1,4 @@
-run_id: "MNIST_MSE_INSTANCENORM"
+run_id: "MNIST_MSE_GN"
 
 training:
   n_epochs: 100
@@ -37,6 +37,8 @@ model:
   architecture: "DCGAN_MNIST_2" # DCGAN, DCGAN_MNIST, DCGAN_MNIST_2
   use_bias: true
   norm: "groupnorm" # batchnorm, groupnorm, instancenorm (not for DCGAN_MNIST)
+  num_groups: 8
+  dropout: 0.1 # 0.0 is disabled
 
 dataset:
   name: "mnist" # MNIST, CELEBA

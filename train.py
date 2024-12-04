@@ -33,6 +33,8 @@ def get_trainer(args, config: dict, checkpoint: dict, device: torch.device):
     norm = config["model"]["norm"]
     use_bias = config["model"]["use_bias"]
     input_size = config["model"].get("input_size", 64)
+    num_groups = config["model"].get("num_groups", 32)
+    dropout = config["model"].get("dropout", None)
 
     # Initialize models
     if "dcgan" in architecture.lower():
@@ -41,6 +43,8 @@ def get_trainer(args, config: dict, checkpoint: dict, device: torch.device):
             input_size=input_size,
             norm=norm,
             use_bias=use_bias,
+            num_groups=num_groups,
+            dropout=dropout,
         )
         trainer = IGNTrainer(model=model, config=config, device=device, checkpoint=checkpoint)
     elif "unet" in architecture.lower().replace("_",""):

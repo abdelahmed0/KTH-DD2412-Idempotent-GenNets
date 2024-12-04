@@ -36,7 +36,7 @@ optimizer:
 model:
   architecture: "DCGAN" # DCGAN & DCGAN_MNIST
   use_bias: true
-  norm: "batchnorm" # batchnorm, grouopnorm (Only for DCGAN)
+  norm: "batchnorm" # batchnorm, groupnorm (Only for DCGAN)
 
 dataset:
   name: "CELEBA" # MNIST, CELEBA

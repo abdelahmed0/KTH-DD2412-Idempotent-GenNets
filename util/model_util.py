@@ -20,6 +20,8 @@ def load_model(checkpoint, device="cpu", force_conditional=False) -> DCGAN:
             architecture=architecture,
             norm=checkpoint["config"]["model"].get("norm", "batchnorm"),
             use_bias=checkpoint["config"]["model"].get("use_bias", True),
+            num_groups=checkpoint["config"]["model"].get("num_groups", 32),
+            dropout=checkpoint['config']['model'].get('dropout', None),
         )
     elif "unet" in architecture.lower().replace("_",""):
         if "conditional" in architecture.lower() or force_conditional:
