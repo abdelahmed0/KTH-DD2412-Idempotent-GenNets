@@ -1,10 +1,11 @@
+import os
 import torch
 import argparse
 
 from tqdm import tqdm
 
 from util.dataset import load_mnist, load_celeb_a
-from util.plot_util import plot_images
+from util.plot_util import plot_images, save_images
 from util.model_util import load_model, load_checkpoint
 from util.function_util import fourier_sample
 
@@ -84,17 +85,21 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--run_id", type=str, required=True)
+    parser.add_argument("--eval_mode", type=str, required=True)
     args = parser.parse_args()
 
     # Setup
+    num_samples = 3  # how many times to generate images
     n_images = 10
     n_recursions = 3
     normalized = True  # True if images are in range [-1, 1]
+    
+    os.makedirs("generated_images", exist_ok=True)
 
     # Loading model and data
     run_id = args.run_id
 
-    checkpoint = load_checkpoint(f"checkpoints/{run_id}.pt")
+    checkpoint = load_checkpoint(run_id)
     model = load_model(checkpoint)
 
     use_mnist = checkpoint["config"]["dataset"]["name"].lower() == "mnist"
@@ -113,27 +118,33 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    # model.eval()
+    if args.eval_mode.lower() in ['true', 'yes', 'y']:
+        model.eval()
+    else:
+        model.train()
 
-    original, reconstructed = rec_generate_images(
-        model=model,
-        device=device,
-        data=data,
-        n_images=n_images,
-        n_recursions=n_recursions,
-        reconstruct=True,
-        use_fourier_sampling=use_fourier_sampling,
-        loading_bar=True,
-    )
-    plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
-    original, reconstructed = rec_generate_images(
-        model=model,
-        device=device,
-        data=data,
-        n_images=n_images,
-        n_recursions=n_recursions,
-        reconstruct=False,
-        use_fourier_sampling=use_fourier_sampling,
-        loading_bar=True,
-    )
-    plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
+    for i in range(num_samples):
+        original, reconstructed = rec_generate_images(
+            model=model,
+            device=device,
+            data=data,
+            n_images=n_images,
+            n_recursions=n_recursions,
+            reconstruct=True,
+            use_fourier_sampling=use_fourier_sampling,
+            loading_bar=True,
+        )
+        #plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
+        save_images(original, reconstructed, grayscale, normalized, output_path=f"generated_images/{run_id.split("/")[-1].removesuffix('.pt')}_reconstructed_{i}.png")
+        original, reconstructed = rec_generate_images(
+            model=model,
+            device=device,
+            data=data,
+            n_images=n_images,
+            n_recursions=n_recursions,
+            reconstruct=False,
+            use_fourier_sampling=use_fourier_sampling,
+            loading_bar=True,
+        )
+        #plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
+        save_images(original, reconstructed, grayscale, normalized, output_path=f"generated_images/{run_id.split("/")[-1].removesuffix('.pt')}_generated_{i}.png")

@@ -19,7 +19,7 @@ def evaluate_generator(generated_images: torch.Tensor, real_images: torch.Tensor
     if not skip_fid:
         image_size = generated_images.shape[1:]   # shape without batch
 
-        fid = FrechetInceptionDistance(input_img_size=image_size, normalize=normalized_images).set_dtype(torch.float64).to(device)
+        fid = FrechetInceptionDistance(input_img_size=image_size, normalize=normalized_images).to(device) # .set_dtype(torch.float64)
 
         for batch in tqdm(range(max(1, len(generated_images)//batch_size)), "FID calculating score"):
             fid.update(imgs=real_images[batch*batch_size:(batch+1)*batch_size,:,:,:].to(device), real=True)

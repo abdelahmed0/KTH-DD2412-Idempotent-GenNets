@@ -6,12 +6,16 @@ import torch
 from torch.nn import functional as F
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch.utils.data import DataLoader
+from torchmetrics.image import StructuralSimilarityIndexMeasure as SSIM
 from tqdm import tqdm
 
 from model.dcgan import DCGAN
 from util.function_util import fourier_sample, normalize_batch
 from generate import rec_generate_images
 from util.scoring import evaluate_generator
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress INFO and WARNING logs
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN logs
 
 
 class IGNTrainer:
@@ -56,18 +60,22 @@ class IGNTrainer:
             self.compile()
 
         # Loss function
-        loss_function = self.config["losses"]["loss_function"]
-        if loss_function.lower() == "l1":
+        self.loss_function = self.config["losses"]["loss_function"]
+        if self.loss_function.lower() == "l1":
             self.rec_func = F.l1_loss
             self.idem_func = F.l1_loss
             self.tight_func = F.l1_loss
-        elif loss_function.lower() == "mse":
+        elif self.loss_function.lower() == "mse":
             self.rec_func = F.mse_loss
             self.idem_func = F.mse_loss
             self.tight_func = F.mse_loss
+        elif self.loss_function.lower() == "ssim":
+            self.rec_func = SSIM(data_range=(-1.0, 1.0), reduction='none').to(device)
+            self.idem_func = F.l1_loss
+            self.tight_func = F.l1_loss
         else:
             raise NotImplementedError(
-                f"Loss function '{loss_function}' is not supported yet."
+                f"Loss function '{self.loss_function}' is not supported yet."
             )
 
     def compile(self):
@@ -121,9 +129,12 @@ class IGNTrainer:
         f_fz = self.model_copy(fz)
 
         # Calculate losses
-        loss_rec = (
-            self.rec_func(fx, x, reduction="none").reshape(batch_size, -1).mean(dim=1)
-        )
+        if self.loss_function.lower() == "ssim":
+            loss_rec = 1.0 - self.rec_func(fx, x)
+        else:
+            loss_rec = (
+                self.rec_func(fx, x, reduction="none").reshape(batch_size, -1).mean(dim=1)
+            )
         loss_idem = self.idem_func(f_fz, fz, reduction="mean")
         loss_tight = (
             -self.tight_func(ff_z, f_z, reduction="none")
@@ -170,9 +181,10 @@ class IGNTrainer:
                     lambda_tight_end - lambda_tight_start
                 ) * (epoch / warmup_epochs)
             elif schedule_type == "exponential":
-                lambda_tight = lambda_tight_start * (
-                    lambda_tight_end / lambda_tight_start
-                ) ** (epoch / warmup_epochs)
+                eps = 1e-6
+                lambda_tight = (lambda_tight_start+eps) * (
+                    (lambda_tight_end+eps) / (lambda_tight_start+eps)
+                ) ** (epoch / warmup_epochs) - eps
             else:
                 raise ValueError(f"Unsupported schedule_type: {schedule_type}")
         else:
@@ -385,9 +397,10 @@ class IGNTrainer:
                     lambda_tight_end - lambda_tight_start
                 ) * (epoch / warmup_epochs)
             elif schedule_type == "exponential":
-                lambda_tight = lambda_tight_start * (
-                    lambda_tight_end / lambda_tight_start
-                ) ** (epoch / warmup_epochs)
+                eps = 1e-6
+                lambda_tight = (lambda_tight_start+eps) * (
+                    (lambda_tight_end+eps) / (lambda_tight_start+eps)
+                ) ** (epoch / warmup_epochs) - eps
             else:
                 raise ValueError(f"Unsupported schedule_type: {schedule_type}")
         else:

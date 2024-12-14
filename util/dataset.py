@@ -52,6 +52,7 @@ def load_mnist(
         drop_last=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        persistent_workers=True,
     )
     val_loader = DataLoader(
         val_dataset,
@@ -93,6 +94,7 @@ def load_celeb_a(
         drop_last=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        persistent_workers=split=="train",
     )
 
     return celebA

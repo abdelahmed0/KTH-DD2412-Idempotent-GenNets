@@ -38,7 +38,7 @@ model:
   use_bias: true
   norm: "groupnorm" # batchnorm, groupnorm, instancenorm (not for DCGAN_MNIST)
   num_groups: 8
-  dropout: 0.1 # 0.0 is disabled
+  dropout: 0.0 # 0.0 is disabled
 
 dataset:
   name: "mnist" # MNIST, CELEBA
