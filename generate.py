@@ -79,6 +79,93 @@ def rec_generate_images(
 
     return original, reconstructed
 
+def generate_grid(
+    model,
+    device,
+    data,
+    n_images,
+    use_fourier_sampling,
+    with_label=False,
+    loading_bar=False,
+    y_input_is_None=False,
+    use_eval_mode=True,
+):
+
+    original = torch.empty(n_images, *next(iter(data))[0].shape[1:])
+    generated = torch.empty(n_images, 1, *next(iter(data))[0].shape[1:])
+
+    if use_eval_mode:
+        model.eval()
+
+    with torch.inference_mode():
+        batch, y = next(iter(data))
+        y = y.to(device)  # , dtype=torch.float)
+        batch = batch.to(device)
+        for i in tqdm(range(n_images)) if loading_bar else range(n_images):
+            if use_fourier_sampling:
+                x = fourier_sample(batch)
+            else:
+                x = torch.randn_like(batch)
+
+            rand_i = torch.randint(0, y.shape[0], (1,))
+            x_hat = x
+            y_hat = y[rand_i]
+
+            original[i] = x_hat[rand_i].clamp(-1.0, 1.0).cpu()
+            if with_label:
+                x_hat = model(x_hat, None if y_input_is_None else y_hat)
+            else:
+                x_hat = model(x_hat)
+            generated[i, 0] = x_hat[rand_i].cpu()
+
+    return original, generated
+
+# if __name__ == "__main__":
+#     """Usage: python generate.py --run_id <run_id>"""
+#     # Parse arguments
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--run_id", type=str, required=True)
+#     args = parser.parse_args()
+
+#     # Setup
+#     use_eval_mode = True
+#     use_mnist = True
+#     use_fourier_sampling = False
+#     n_images = 100
+#     normalized = True  # True if images are in range [-1, 1]
+
+#     # Loading model and data
+#     run_id = args.run_id
+
+#     checkpoint = load_checkpoint(f"checkpoints/{run_id}.pt")
+#     model = load_model(checkpoint)
+
+
+#     grayscale = True if use_mnist else False
+
+#     if use_mnist:
+#         _, data = load_mnist(
+#             batch_size=256,
+#             single_channel=True,
+#         )
+#     else:
+#         data = load_celeb_a(
+#             batch_size=checkpoint["config"]["training"]["batch_size"], split="test"
+#         )
+
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     model.to(device)
+
+#     original, generated = generate_grid(
+#         model=model,
+#         device=device,
+#         data=data,
+#         n_images=n_images,
+#         use_fourier_sampling=use_fourier_sampling,
+#         loading_bar=True,
+#         use_eval_mode=use_eval_mode,
+#     )
+#     plot_grid(generated, grayscale=grayscale, normalized=normalized)
 
 if __name__ == "__main__":
     """Usage: python generate.py --run_id <run_id>"""

@@ -52,6 +52,22 @@ def plot_images(original: list, generated: list, grayscale=True, normalized=Fals
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.show()
 
+def plot_grid(images, grayscale=True, normalized=False):
+    grid_size = int(len(images) ** 0.5)
+    fig, axs = plt.subplots(grid_size, grid_size, figsize=(grid_size, grid_size))
+    for col in range(grid_size):
+        for row in range(grid_size):
+            idx = col * grid_size + row
+            if grayscale:
+                image = images[idx, 0].detach().squeeze() # Remove channel dimension
+                axs[col, row].imshow(image, cmap='gray')
+            else:
+                axs[col, row].imshow(images[idx].permute((1,2,0)))
+            axs[col, row].axis('off')
+
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.tight_layout(pad=0)
+    plt.show()
 
 def save_images(original, generated, grayscale=False, normalized=True, output_path="output_images.png", suptitle=None, transformed=False):
     """
