@@ -5,7 +5,7 @@ import argparse
 from tqdm import tqdm
 
 from util.dataset import load_mnist, load_celeb_a
-from util.plot_util import plot_images, save_images
+from util.plot_util import plot_images, save_images, plot_grid
 from util.model_util import load_model, load_checkpoint
 from util.function_util import fourier_sample
 
@@ -87,15 +87,11 @@ def generate_grid(
     use_fourier_sampling,
     with_label=False,
     loading_bar=False,
-    y_input_is_None=False,
-    use_eval_mode=True,
+    y_input_is_None=False
 ):
 
     original = torch.empty(n_images, *next(iter(data))[0].shape[1:])
     generated = torch.empty(n_images, 1, *next(iter(data))[0].shape[1:])
-
-    if use_eval_mode:
-        model.eval()
 
     with torch.inference_mode():
         batch, y = next(iter(data))
@@ -176,8 +172,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Setup
+    plot_uncurated_grid = False
     num_samples = 3  # how many times to generate images
-    n_images = 10
+    n_images = 10    # In case of grid, n_images x n_images images will be generated
     n_recursions = 3
     normalized = True  # True if images are in range [-1, 1]
     
@@ -210,28 +207,39 @@ if __name__ == "__main__":
     else:
         model.train()
 
-    for i in range(num_samples):
-        original, reconstructed = rec_generate_images(
+    if plot_uncurated_grid:
+        original, generated = generate_grid(
             model=model,
             device=device,
             data=data,
-            n_images=n_images,
-            n_recursions=n_recursions,
-            reconstruct=True,
+            n_images=n_images**2,
             use_fourier_sampling=use_fourier_sampling,
-            loading_bar=True,
+            loading_bar=True
         )
-        #plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
-        save_images(original, reconstructed, grayscale, normalized, output_path=f"generated_images/{run_id.split("/")[-1].removesuffix('.pt')}_reconstructed_{i}.png")
-        original, reconstructed = rec_generate_images(
-            model=model,
-            device=device,
-            data=data,
-            n_images=n_images,
-            n_recursions=n_recursions,
-            reconstruct=False,
-            use_fourier_sampling=use_fourier_sampling,
-            loading_bar=True,
-        )
-        #plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
-        save_images(original, reconstructed, grayscale, normalized, output_path=f"generated_images/{run_id.split("/")[-1].removesuffix('.pt')}_generated_{i}.png")
+        plot_grid(generated, grayscale=grayscale, normalized=normalized)
+    else:
+        for i in range(num_samples):
+            original, reconstructed = rec_generate_images(
+                model=model,
+                device=device,
+                data=data,
+                n_images=n_images,
+                n_recursions=n_recursions,
+                reconstruct=True,
+                use_fourier_sampling=use_fourier_sampling,
+                loading_bar=True,
+            )
+            #plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
+            save_images(original, reconstructed, grayscale, normalized, output_path=f"generated_images/{run_id.split("/")[-1].removesuffix('.pt')}_reconstructed_{i}.png")
+            original, reconstructed = rec_generate_images(
+                model=model,
+                device=device,
+                data=data,
+                n_images=n_images,
+                n_recursions=n_recursions,
+                reconstruct=False,
+                use_fourier_sampling=use_fourier_sampling,
+                loading_bar=True,
+            )
+            #plot_images(original, reconstructed, grayscale=grayscale, normalized=normalized)
+            save_images(original, reconstructed, grayscale, normalized, output_path=f"generated_images/{run_id.split("/")[-1].removesuffix('.pt')}_generated_{i}.png")
