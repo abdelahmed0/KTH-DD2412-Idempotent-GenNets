@@ -11,15 +11,24 @@ def _plot_images(original: list, generated: list, grayscale=True, transformed=Fa
         for row in range(n_recursions+1):
             if col == 0:
                 # Display the correct label for each row
-                if row == 0:
-                    label = "$x$"
-                elif transformed and row == 1:
-                    label = "$g(x)$"
-                elif row <= 3:
-                    # Generate nested notation like f(f(...f(x)...))
-                    label = "$" + "f(" * row + "x" + ")" * row + "$"
+                if transformed:
+                    if row == 0:
+                        label = "$x$"
+                    elif row == 1:
+                        label = "$g(x)$"
+                    elif row <= 3:
+                        # Generate nested notation like f(f(...f(x)...))
+                        label = "$" + "f(" * (row-1) + "x" + ")" * (row-1) + "$"
+                    else:
+                        label = f"$f^{row-1}(x)$"
                 else:
-                    label = f"$f^{row}(x)$"
+                    if row == 0:
+                        label = "$x$"
+                    elif row <= 3:
+                        # Generate nested notation like f(f(...f(x)...))
+                        label = "$" + "f(" * row + "x" + ")" * row + "$"
+                    else:
+                        label = f"$f^{row}(x)$"
                 axs[row, col].text(0.9, 0.5, label, ha="right", va="center", fontsize=12)
                 axs[row, col].axis('off')
 
@@ -53,6 +62,9 @@ def plot_images(original: list, generated: list, grayscale=True, normalized=Fals
     plt.show()
 
 def plot_grid(images, grayscale=True, normalized=False):
+    if normalized:
+        images = normalize_batch(images)
+    
     grid_size = int(len(images) ** 0.5)
     fig, axs = plt.subplots(grid_size, grid_size, figsize=(grid_size, grid_size))
     for col in range(grid_size):
