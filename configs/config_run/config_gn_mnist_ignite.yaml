@@ -1,0 +1,60 @@
+run_id: "MNIST_GN_IGNITE"
+
+training:
+  n_epochs: 100
+  batch_size: 256
+  save_period: 50
+  image_log_period: 10
+  score_log_period: 100
+  validation_period: 10
+  compile_model: true
+  use_fourier_sampling: false
+  use_amp: true
+  initial_validation_threshold: 8
+  manifold_warmup:
+    enabled: true
+    warmup_epochs: 50
+    lambda_tight_start: 0.0 # Starting value of lambda_tight
+    schedule_type: "linear" # Type of scheduling ("linear" or "exponential")
+
+losses:
+  loss_function: "MSE" # MSE, L1
+  lambda_rec: 1.0
+  lambda_idem: 1.0
+  lambda_tight: 0.1 # If warmup is enabled, this value is the end value of lambda_tight
+  tight_clamp: false
+  tight_clamp_ratio: 1.5
+
+early_stopping:
+  patience: 200
+
+optimizer:
+  type: "Adam"
+  lr: 0.0001
+  betas: [0.5, 0.999]
+
+model:
+  architecture: "DCGAN_MNIST_2" # DCGAN, DCGAN_MNIST, DCGAN_MNIST_2
+  use_bias: true
+  norm: "groupnorm" # batchnorm, groupnorm, instancenorm (not for DCGAN_MNIST)
+  num_groups: 8
+  dropout: 0.0 # 0.0 is disabled
+
+dataset:
+  name: "mnist" # MNIST, CELEBA
+  path: "./data"
+  download: true
+  num_workers: 5
+  pin_memory: true
+  add_noise: false
+  validation_split: 0.05
+  single_channel: true  # Only used for MNIST
+
+logging:
+  log_dir: "runs"
+
+checkpoint:
+  save_dir: "checkpoints"
+
+device:
+  use_cuda: true

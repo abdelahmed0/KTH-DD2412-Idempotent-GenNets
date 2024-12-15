@@ -5,3 +5,6 @@ tensorboard
 tqdm
 torchvision
 gdown
+pyyaml
+torchsummary
+opencv-python

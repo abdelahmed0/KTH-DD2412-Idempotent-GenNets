@@ -18,15 +18,10 @@ class UNet(nn.Module):
         x1 = self.encoder.down1(x) 
         x2 = self.encoder.down2(x1)  
         x3 = self.encoder.down3(x2)  
-        x4 = self.encoder.down4(x3)  
-        x5 = self.encoder.bottleneck(x4)  
+        x4 = self.encoder.bottleneck(x3)  
 
         # Decoder path
-        x = self.decoder.up1(x5)
-        x = torch.cat([x4, x], dim=1)
-        x = self.decoder.conv1(x)
-
-        x = self.decoder.up2(x)
+        x = self.decoder.up2(x4)
         x = torch.cat([x3, x], dim=1)
         x = self.decoder.conv2(x)
 
@@ -49,78 +44,89 @@ class UNet(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias.data, 0)
 
+class DownBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
+        super(DownBlock, self).__init__()
+        self.seq = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            #nn.BatchNorm2d(out_channels),
+            nn.GroupNorm(1, out_channels),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        x = self.seq(x)
+        return x
+        
+
 class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
-        self.down1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=4, stride=2, padding=1),  # (N, 64, 32, 32)
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True)
-        )
-        self.down2 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (N, 128, 16, 16)
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True)
-        )
-        self.down3 = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (N, 256, 8, 8)
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True)
-        )
-        self.down4 = nn.Sequential(
-            nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 4, 4)
-            nn.BatchNorm2d(512),
-            nn.ReLU(inplace=True)
-        )
+        self.down1 = DownBlock(3, 64, kernel_size=4, stride=2, padding=1)  # (N, 64, 32, 32)
+
+        self.down2 = DownBlock(64, 128, kernel_size=4, stride=2, padding=1)  # (N, 128, 16, 16)
+ 
+        self.down3 = DownBlock(128, 256, kernel_size=4, stride=2, padding=1)  # (N, 256, 8, 8)
+
+        #self.down4 = DownBlock(256, 512, kernel_size=4, stride=2, padding=1)  # (N, 512, 4, 4)
+
         self.bottleneck = nn.Sequential(
-            nn.Conv2d(512, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 2, 2)
-            nn.BatchNorm2d(512),
-            nn.ReLU(inplace=True)
+            nn.Conv2d(256, 256, kernel_size=4, stride=2, padding=1),  # (N, 512, 2, 2)
+            #nn.BatchNorm2d(512),
+            nn.GroupNorm(1, 256),
+            nn.ReLU()
         )
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, padding):
+        super(ConvBlock, self).__init__()
+        self.seq = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding),  # (N, 512, 4, 4)
+            #nn.BatchNorm2d(512),
+            nn.GroupNorm(1, out_channels),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        x = self.seq(x)
+        return x
 
 class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
-        self.up1 = nn.Sequential(
-            nn.ConvTranspose2d(512, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 4, 4)
-            nn.BatchNorm2d(512),
-            nn.ReLU()
-        )
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(512 + 512, 512, kernel_size=3, padding=1),  # (N, 512, 4, 4)
-            nn.BatchNorm2d(512),
-            nn.ReLU()
-        )
+        # self.up1 = nn.Sequential(
+        #     nn.ConvTranspose2d(512, 512, kernel_size=4, stride=2, padding=1),  # (N, 512, 4, 4)
+        #     #nn.BatchNorm2d(512),
+        #     nn.GroupNorm(1, 512),
+        #     nn.ReLU()
+        # )
+        # self.conv1 = ConvBlock(512 + 512, 512, kernel_size=3, padding=1)  # (N, 512, 4, 4)
+
         self.up2 = nn.Sequential(
-            nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),  # (N, 256, 8, 8)
-            nn.BatchNorm2d(256),
+            nn.ConvTranspose2d(256, 256, kernel_size=4, stride=2, padding=1),  # (N, 256, 8, 8)
+            #nn.BatchNorm2d(256),
+            nn.GroupNorm(1, 256),
             nn.ReLU()
         )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(256 + 256, 256, kernel_size=3, padding=1),  # (N, 256, 8, 8)
-            nn.BatchNorm2d(256),
-            nn.ReLU()
-        )
+        self.conv2 = ConvBlock(256 + 256, 256, kernel_size=3, padding=1)  # (N, 256, 8, 8)
+   
+   
         self.up3 = nn.Sequential(
             nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),  # (N, 128, 16, 16)
-            nn.BatchNorm2d(128),
+            #nn.BatchNorm2d(128),
+            nn.GroupNorm(1, 128),
             nn.ReLU()
         )
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(128 + 128, 128, kernel_size=3, padding=1),  # (N, 128, 16, 16)
-            nn.BatchNorm2d(128),
-            nn.ReLU()
-        )
+        self.conv3 = ConvBlock(128 + 128, 128, kernel_size=3, padding=1)  # (N, 128, 16, 16)
+
         self.up4 = nn.Sequential(
             nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),  # (N, 64, 32, 32)
-            nn.BatchNorm2d(64),
+            #nn.BatchNorm2d(64),
+            nn.GroupNorm(1, 64),
             nn.ReLU()
         )
-        self.conv4 = nn.Sequential(
-            nn.Conv2d(64 + 64, 64, kernel_size=3, padding=1),  # (N, 64, 32, 32)
-            nn.BatchNorm2d(64),
-            nn.ReLU()
-        )
+        self.conv4 = ConvBlock(64 + 64, 64, kernel_size=3, padding=1)  # (N, 64, 32, 32)
+
         self.final_up = nn.Sequential(
             nn.ConvTranspose2d(64, 3, kernel_size=4, stride=2, padding=1),  # (N, 3, 64, 64)
             nn.Tanh()
@@ -130,6 +136,6 @@ if __name__ == "__main__":
     model = UNet()
     print(model)
 
-    x = torch.randn(1, 3, 64, 64)
+    x = torch.randn(5, 3, 64, 64)
     y = model(x)
-    print(y.shape)  # Should output torch.Size([1, 3, 64, 64])
+    print(y.shape)  # Should output torch.Size([5, 3, 64, 64])

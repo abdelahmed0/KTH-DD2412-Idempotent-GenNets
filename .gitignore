@@ -163,5 +163,6 @@ cython_debug/
 
 # Data
 /data
-/runs
-/checkpoints
+/checkpoints*
+/image_gui_output
+/notebooks

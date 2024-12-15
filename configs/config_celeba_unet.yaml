@@ -1,0 +1,57 @@
+run_id: "CELEBA_UNET"
+
+training:
+  n_epochs: 1000
+  batch_size: 256
+  save_period: 100
+  image_log_period: 25
+  score_log_period: 100
+  validation_period: 10
+  compile_model: true
+  use_fourier_sampling: true
+  use_amp: true
+  initial_validation_threshold: 8
+  manifold_warmup:
+    enabled: false
+    warmup_epochs: 100
+    lambda_tight_start: 0.5 # Starting value of lambda_tight
+    schedule_type: "linear" # Type of scheduling ("linear" or "exponential")
+
+losses:
+  loss_function: "L1" # L1, MSE
+  lambda_rec: 18
+  lambda_idem: 20
+  lambda_tight: 2.5         # If warmup is enabled, this value is the end value of lambda_tight
+  tight_clamp: true
+  tight_clamp_ratio: 1.5
+
+early_stopping:
+  patience: 1000
+
+optimizer:
+  type: "Adam"
+  lr: 0.0001
+  betas: [0.9, 0.999]
+
+model:
+  architecture: "UNet" # DCGAN & DCGAN_MNIST
+  use_bias: true  # Only for DCGAN
+  norm: "batchnorm" # batchnorm, grouopnorm (Only for DCGAN)
+
+dataset:
+  name: "CELEBA" # MNIST, CELEBA
+  path: "./data"
+  download: true
+  num_workers: 8
+  pin_memory: true
+  random_flip: true # Only used for CelebA
+  single_channel: true  # Only used for MNIST
+
+logging:
+  log_dir: "runs"
+
+checkpoint:
+  save_dir: "checkpoints"
+
+device:
+  use_cuda: true

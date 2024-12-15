@@ -1,0 +1,60 @@
+run_id: "CELEBA_IGNITE_EXPONENTIAL"
+
+training:
+  n_epochs: 1000
+  batch_size: 256
+  save_period: 100
+  image_log_period: 25
+  score_log_period: 100
+  validation_period: 25
+  compile_model: true
+  use_fourier_sampling: true
+  use_amp: true
+  initial_validation_threshold: 8
+  manifold_warmup:
+    enabled: true
+    warmup_epochs: 400
+    lambda_tight_start: 0.0 # Starting value of lambda_tight
+    schedule_type: "exponential" # Type of scheduling ("linear" or "exponential")
+
+losses:
+  loss_function: "L1" # L1, MSE
+  lambda_rec: 20
+  lambda_idem: 20
+  lambda_tight: 2.5         # If warmup is enabled, this value is the end value of lambda_tight
+  tight_clamp: true
+  tight_clamp_ratio: 1.5
+
+early_stopping:
+  patience: 1000
+
+optimizer:
+  type: "Adam"
+  lr: 0.0001
+  betas: [0.5, 0.999]
+
+model:
+  architecture: "DCGAN" # DCGAN, DCGAN_MNIST, DCGAN_MNIST_2, UNet, UNet_conditional
+  use_bias: true
+  norm: "groupnorm" # batchnorm, groupnorm
+  num_groups: 32
+  dropout: 0.0 # 0.0 is disabled
+
+dataset:
+  name: "CELEBA" # MNIST, CELEBA
+  path: "./data"
+  download: true
+  num_workers: 5
+  pin_memory: true
+  random_flip: false # Only used for CelebA
+  add_noise: false # Only used for MNIST
+  single_channel: true  # Only used for MNIST
+
+logging:
+  log_dir: "runs"
+
+checkpoint:
+  save_dir: "checkpoints"
+
+device:
+  use_cuda: true

@@ -8,6 +8,10 @@ def fourier_sample(batch):
     z = torch.fft.ifft2(torch.randn_like(f) * stds + means).real
     return z
 
+def normalize_batch(batch: torch.Tensor):
+    # [-1, 1] -> [0, 1]
+    return ((batch * 0.5) + 0.5).clamp(0.0, 1.0)
+
 if __name__ == "__main__":
     import os
     from dataset import load_mnist
